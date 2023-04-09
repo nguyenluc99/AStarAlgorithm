@@ -225,8 +225,13 @@ void *execAStar(void* arg)
 
     while (!openList.empty())
     {
-        /* If the main thread says force end, stop immediately. */
-        CHECK_END_FORCE(*(shared->forceEnd), heuDistance);
+        /*
+         * If the main thread says force end, stop immediately.
+         * This seems to be redundant as we already check inside
+         * two nested for-loop condition below. But we just leave
+         * it here, and might remove it later.
+         */
+        CHECK_THREAD_END(*(shared->state), heuDistance);
 
         int padx, pady;
         Cell* mainCell;
@@ -241,7 +246,7 @@ void *execAStar(void* arg)
             endExec(listCell, windowSize->ncol);
 
             pthread_mutex_lock(&mutex);
-            *(shared->forceEnd) = true;
+            *(shared->state) = THREAD_END;
             pthread_mutex_unlock(&mutex);
 
             break;
@@ -274,10 +279,10 @@ void *execAStar(void* arg)
             for (padx = -1; padx <= 1; padx ++)
             {
                 /* Busy waiting if the main thread says PAUSED */
-                while(*(shared->paused)) {
+                while(*(shared->state) == THREAD_PAUSED) {
                     // deadlock might occur if we PAUSE at child, RESET at main and dont check this if-else
-                    CHECK_END_FORCE(*(shared->forceEnd), heuDistance);
                 };
+                CHECK_THREAD_END(*(shared->state), heuDistance);
 
                 float successor_f, successor_g, successor_h;
                 Cell* successorCell;
@@ -355,7 +360,7 @@ void *execAStar(void* arg)
         // prevTime = getCurrentMicroSecs();
         // while (getCurrentMicroSecs() - prevTime < 1/stepPerSecs * 1e6)// ~ waitingTimeInterval
         // {
-        //     CHECK_END_FORCE(*(shared->forceEnd), heuDistance);
+        //     CHECK_THREAD_END(*(shared->state), heuDistance);
         //     usleep(100); /* just waiting */
         // };
 
@@ -366,7 +371,7 @@ void *execAStar(void* arg)
     }
     
     pthread_mutex_lock(&mutex);
-    *(shared->forceEnd) = true; /* do we need this? Am I sure that the solution is founded?*/
+    *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
     pthread_mutex_unlock(&mutex);
 
     return NULL;

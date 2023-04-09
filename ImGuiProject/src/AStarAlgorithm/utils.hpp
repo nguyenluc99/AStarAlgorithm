@@ -21,6 +21,8 @@
 #define ABS(x)                  ((x > 0) ? (x) : -(x))
 #define MAX2(x, y)              ((x > y) ? (x) : (y))
 #define MIN2(x, y)              ((x < y) ? (x) : (y))
+
+/* to avoid including math.h header to calculate square root */
 #define SQRT2                   1.41421356f
 
 
@@ -29,9 +31,9 @@
 
 #define GetIdxByBlock(blk, size) ((int)(blk.x + blk.y * size)) 
 
-#define CHECK_END_FORCE(forceEnd, toBeFreed) \
+#define CHECK_THREAD_END(state, toBeFreed) \
 do { \
-        if (forceEnd) { \
+        if (state  == THREAD_END) { \
             free(toBeFreed); \
             return NULL; \
         } \
@@ -42,7 +44,7 @@ do { \
     long prevTime = getCurrentMicroSecs(); \
     while (getCurrentMicroSecs() - prevTime < 1/stepPerSecs * 1e6) \
     { \
-        CHECK_END_FORCE(*(shared->forceEnd), heuDistance); \
+        CHECK_THREAD_END(*(shared->state), heuDistance); \
         usleep(100); \
     }; \
 } while(0); 
@@ -65,6 +67,14 @@ typedef enum ChoosingLabel
     CHOOSE_BLOCKED
 } ChoosingLabel;
 
+typedef enum ThreadState
+{
+    THREAD_INITIALIZED,
+    THREAD_RUNNING,
+    THREAD_PAUSED,
+    THREAD_END
+} ThreadState;
+
 typedef struct Cell
 {
     ImVec2       block;
@@ -73,9 +83,9 @@ typedef struct Cell
     float        h;             /* Heuristic distance from this Cell to TARGET  */
     float        f_order;       /* f + (insignificant amount), used to compare
                                    Cell so that all Cell are uniquely stored    */
-    Cell        *prev;          /* previous Cell that when go through it recursively,
-                                   we will end at SOURCE, and archive the total 
-                                   distance `g`*/
+    Cell        *prev;          /* previous Cell that when go through it
+                                   recursively, we will end at SOURCE, and 
+                                   archive the total distance `g`               */
 } Cell;
 
 typedef struct Grid
@@ -88,11 +98,11 @@ typedef struct ThreadSearchingState
 {
     BlockLabels     *labels;
     Grid             windowSize;
-    bool            *forceEnd;
-    bool            *paused;
+    ThreadState     *state;
 } ThreadSearchingState;
 
 
 void reCalculateBlockSize(Grid* windowSize, int* blockSize);
+long getCurrentMicroSecs();
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio);
 void *execAStar(void* arg);

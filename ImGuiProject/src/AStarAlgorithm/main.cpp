@@ -12,6 +12,7 @@
 #include "imgui_impl_opengl2.h"
 #include <stdio.h>
 #include <SDL.h>
+// #include <SDL_video.h>
 #include <SDL_opengl.h>
 
 #include <pthread.h>
@@ -19,6 +20,8 @@
 #include <unistd.h>
 #include <string>
 #include "utils.hpp"
+
+#define MAIN_SCREEN_FPS         60
 
 
 extern int   sourceIdx, targetIdx;
@@ -83,6 +86,9 @@ int main(int argc, char** argv)
     SDL_Window* window = SDL_CreateWindow("A Star algorithm demonstration program", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
+    // SDL_DisplayMode mode;
+    // mode.refresh_rate = 10;
+    // SDL_SetWindowDisplayMode(window, &mode);
     SDL_GL_SetSwapInterval(1); // Enable vsync
 
     // Setup Dear ImGui context
@@ -99,22 +105,6 @@ int main(int argc, char** argv)
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL2_Init();
-
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != NULL);
 
     // Our state
     bool show_demo_window = true;
@@ -133,17 +123,14 @@ int main(int argc, char** argv)
     
     BlockLabels *labels = NULL;
     initLabels(&labels, &windowSize);
-    bool endThread = false;
-    bool paused = false;
+    ThreadState t_state = THREAD_INITIALIZED;
     pthread_t thread_id;
     bool show_config_window = false;
+    ThreadSearchingState shared;
+
     while (!done)
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+        long startTime = getCurrentMicroSecs();
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -223,11 +210,6 @@ int main(int argc, char** argv)
 
                     ImGui::PushStyleColor(ImGuiCol_Border, BLACK); /* Color of text */
                     ImGui::PushStyleColor(ImGuiCol_Header, color); /* Color of background */
-                    // ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
-                    // ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 10.0f);
-                    // ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 10.0f);
-                    // ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                    // ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
                     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 10.0f);
 
                     // ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
@@ -277,12 +259,6 @@ int main(int argc, char** argv)
                     ImGui::EndChild();
                     ImGui::PopStyleVar();
 
-                    // ImGui::PopStyleVar();
-                    // ImGui::PopStyleVar();
-                    // ImGui::PopStyleVar();
-                    // ImGui::PopStyleVar();
-                    // ImGui::PopStyleVar();
-                    // ImGui::PopStyleVar();
                     ImGui::PopStyleVar();
                     ImGui::PopStyleColor();
                     ImGui::PopStyleColor();
@@ -301,32 +277,37 @@ int main(int argc, char** argv)
             if (ImGui::Button("Choose blocked"))
                 choosingOpt = CHOOSE_BLOCKED;
                 
-            if (ImGui::Button("Exec A Star"))
+            if (ImGui::Button("Exec A Star") &&
+                t_state != THREAD_RUNNING)
             {
-                ThreadSearchingState shared;
                 shared.labels = labels;
                 shared.windowSize.nrow = windowSize.nrow;
                 shared.windowSize.ncol = windowSize.ncol;
-                shared.forceEnd = &endThread;
-                shared.paused = &paused;
-                int err = pthread_create(&thread_id, NULL, execAStar, (void*)&shared);
+                t_state = THREAD_RUNNING;
+                shared.state = &t_state;
+                int err = pthread_create(&thread_id,
+                                         NULL,
+                                         execAStar,
+                                         (void*) &shared);
                 if(err != 0)
                 {
-                    endThread = true; // Ask child to end right now.
+                    /* Ask the child to stop */
+                    t_state = THREAD_END;
+                    /* now we can join the child before returning */
                     pthread_join(thread_id, NULL);
                     return 1; // Error occurs.
                 }
             }
-            if (endThread)
+            if (t_state == THREAD_END)
             {
                 pthread_join(thread_id, NULL);
-                endThread = false;
+                t_state = THREAD_INITIALIZED;
             }
 
             if (ImGui::Button("RESET"))
             {
                 pthread_mutex_lock(&mutex);
-                endThread = true;
+                t_state = THREAD_END;
                 initLabels(&labels, &windowSize);
                 pthread_mutex_unlock(&mutex);
             }
@@ -334,80 +315,65 @@ int main(int argc, char** argv)
             if (ImGui::Button("PAUSE/CONTINUE"))
             {
                 pthread_mutex_lock(&mutex);
-                paused = !paused;
+                if (t_state == THREAD_RUNNING)
+                    t_state = THREAD_PAUSED;
+                else if (t_state == THREAD_PAUSED)
+                    t_state = THREAD_RUNNING;
                 pthread_mutex_unlock(&mutex);
             }
 
-            if (paused)
+            if (t_state == THREAD_PAUSED)
             {
                 ImGui::SameLine();
                 ImGui::Text("\tPAUSED.\t"); 
             }
 
-            if (ImGui::Button("Random state"))
+            if (ImGui::Button("Random grid"))
                 show_config_window = true;
 
             if (show_config_window)
             {
                 float blockedRatio = 0.3;
-                ImGui::Begin("Another Window", &show_config_window, ImGuiWindowFlags_AlwaysAutoResize);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+
+                ImGui::Begin("Another Window", &show_config_window, ImGuiWindowFlags_AlwaysAutoResize);
                 ImGui::InputInt("Num row", &(windowSize.nrow));
                 ImGui::InputInt("Num col", &(windowSize.ncol));
                 ImGui::InputFloat("Blocked ratio", &blockedRatio);
-                if (ImGui::Button("Close Me"))
-                {
-                    show_config_window = false;
-                }
-                ImGui::SameLine();
                 if (ImGui::Button("Random grid"))
                 {
                     show_config_window = false;
+                    // TODO: Show warning in case blockedRatio is not in a satisfied range.
                     if (blockedRatio < 1.0f &&
-                        blockedRatio > 0.0f)
+                        blockedRatio >= 0.0f)
                         RandomGrid(&labels, &windowSize, blockedRatio);
                 }                
+                ImGui::SameLine();
+                if (ImGui::Button("Close"))
+                    show_config_window = false;
+
                 ImGui::End();
             }
 
-            if (ImGui::Button("QUIT"))
+            if (ImGui::Button("QUIT") || /* either the user click QUIT, or `x` on the corner with a `initialized` thread */
+                (done &&
+                    (t_state == THREAD_PAUSED ||
+                     t_state == THREAD_RUNNING)))
             {
+                /* Ask the child to stop */
+                t_state = THREAD_END;// endThread = true;
+                /* now we can join the child before quiting */
+                pthread_join(thread_id, NULL);
                 break;
             }
                
             ImGui::PopStyleColor();
-            
-            // ImGui::TreePop();
 
-            // static float f = 0.0f;
-            // static int counter = 0;
-
-            // ImGui::Begin("A star algo");                          // Create a window called "Hello, world!" and append into it.
-
-            // ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            // ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            // ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            // ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            // if (ImGui::Button("Button"))// Buttons return true when clicked (most widgets return true when edited/activated)
-            //     counter++;
-            // ImGui::SameLine();
-            // ImGui::Text("counter = %d", counter);
+            /* Continuously parse a float from slider in range of 0.1f to 500.0f */
+            ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);            
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
         }
-
-        // // 3. Show another simple window.
-        // if (show_another_window)
-        // {
-        //     ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        //     ImGui::Text("Hello from another window!");
-        //     if (ImGui::Button("Close Me"))
-        //         show_another_window = false;
-        //     ImGui::End();
-        // }
 
         // Rendering
         ImGui::Render();
@@ -417,6 +383,21 @@ int main(int argc, char** argv)
         //glUseProgram(0); // You may want this if using this code in an OpenGL 3+ context where shaders may be bound
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
+        
+        /*
+         * As we do not know how to set refresh rate of the main screen at the moment,
+         * we are using busy waiting to force the main screen to wait for a specific
+         * amount of time enough for the FPS. This will enforce a maximum FPS rate on
+         * the main screen.
+         */
+        while(getCurrentMicroSecs() - startTime <  1e6 / MAIN_SCREEN_FPS)
+            /*
+             * 60 FPS ~ 16667 microseconds/frame.
+             * The variances about 500/16667 ~ 3% should be enough.
+             * Ideally, the expected refresh rate is about 60*0.985 = 59.1 (FPS)
+             */
+            usleep(500); 
+
     }
 
     // Cleanup

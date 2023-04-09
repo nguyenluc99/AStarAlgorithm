@@ -5,7 +5,7 @@ A visualization version of A* algorithm finding shortest path between two nodes.
 
 Go to project location:
 ```
-cd ImGuiProject/src/AStarSortingAlgo
+cd ImGuiProject/src/AStarAlgorithm
 ```
 
 Build using `make`
@@ -15,9 +15,9 @@ make clean && make
 
 Run the algorithm with default size:
 ```
-./AStarSortingAlgo
+./AStarAlgorithm
 ```
-Or run with specific window size `./AStarSortingAlgo width height`, for example:
+Or run with specific window size `./AStarAlgorithm width height`, for example:
 ```
-./AStarSortingAlgo 800 600
+./AStarAlgorithm 800 600
 ```

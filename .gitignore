@@ -33,3 +33,4 @@
 
 # MACOS default file
 .DS_Store
+*.ini

@@ -18,6 +18,10 @@
 #define LIGHTBLUE               ImVec4(0.0f, 0.6f, 0.8f, 1.0f)
 #define BLACK                   ImVec4(0.0f, 0.0f, 0.0f, 1.0f)
 
+#define IM_COL_BLACK            IM_COL32(0, 0, 0, 255)
+#define IM_COL_RED              IM_COL32(255, 0, 0, 255)
+#define BORDER_THICKNESS        0.3f
+
 #define ABS(x)                  ((x > 0) ? (x) : -(x))
 #define MAX2(x, y)              ((x > y) ? (x) : (y))
 #define MIN2(x, y)              ((x < y) ? (x) : (y))
@@ -49,6 +53,10 @@ do { \
     }; \
 } while(0); 
 
+#define GetBlockPosition(colIdx, rowIdx, blkSize)       (ImVec2(4  + colIdx * (blkSize + 8) + mainWindowPosition.x - ImGui::GetScrollX(), \
+                                                                 24 + rowIdx * (blkSize + 4) + mainWindowPosition.y - ImGui::GetScrollY()))
+
+#define GetBlockCenter(blk, blkSize)                    (ImVec2(blk.x + blkSize/2, blk.y + blkSize/2))
 
 typedef enum BlockLabels
 {
@@ -72,6 +80,7 @@ typedef enum ThreadState
     THREAD_INITIALIZED,
     THREAD_RUNNING,
     THREAD_PAUSED,
+    THREAD_FINISHED,
     THREAD_END
 } ThreadState;
 
@@ -94,15 +103,17 @@ typedef struct Grid
     int          ncol;
 } Grid;
 
-typedef struct ThreadSearchingState
+typedef struct ThreadSearchingState // TODO: only lock item which might be modified by both thread.  
 {
     BlockLabels     *labels;
     Grid             windowSize;
     ThreadState     *state;
+    Cell            *listCell;      /* state of nrow*ncol cell in listCell */
 } ThreadSearchingState;
 
 
-void reCalculateBlockSize(Grid* windowSize, int* blockSize);
+void reCalculateBlockSize(Grid* windowSize);
 long getCurrentMicroSecs();
+void endExec(Cell* listCell, int ncol);
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio);
 void *execAStar(void* arg);

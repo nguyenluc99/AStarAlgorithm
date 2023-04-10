@@ -22,12 +22,15 @@
 #include "utils.hpp"
 
 #define MAIN_SCREEN_FPS         60
+#define BUTTON_SIZE             ImVec2(120, 30)
 
 
 extern int   sourceIdx, targetIdx;
 extern float stepPerSecs;
 extern int   max_width, max_height;
 extern pthread_mutex_t mutex;
+extern int blockSize;
+extern ImVec2 mainWindowPosition;
 
 void initLabels(BlockLabels **labels, Grid* windowSize)
 {
@@ -119,7 +122,7 @@ int main(int argc, char** argv)
     windowSize.nrow = 5;
     windowSize.ncol = 5;
         // TODO: calulate each box size according to the number of block and total windows size
-    int blockSize = 40;
+    // int blockSize = 40;
     
     BlockLabels *labels = NULL;
     initLabels(&labels, &windowSize);
@@ -127,6 +130,9 @@ int main(int argc, char** argv)
     pthread_t thread_id;
     bool show_config_window = false;
     ThreadSearchingState shared;
+    bool drawLine = false;
+    int nrow = windowSize.nrow,
+        ncol = windowSize.ncol;
 
     while (!done)
     {
@@ -148,16 +154,18 @@ int main(int argc, char** argv)
 
         // ImGui::SetNextWindowSize(ImVec2(1200, 1000));
         ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+        mainWindowPosition = ImGui::GetWindowPos();
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        reCalculateBlockSize(&windowSize, &blockSize);
+        reCalculateBlockSize(&windowSize);
         // 3. Show a window of size windowSize.
         {
             for (int rowIdx = 0; rowIdx < windowSize.nrow; rowIdx++)
             {
+                // ImGui::Dummy(ImVec2(0.0f, 5.0f));
                 for (int colIdx = 0; colIdx < windowSize.ncol; colIdx++)
                 {
                     char name[16];
@@ -166,7 +174,11 @@ int main(int argc, char** argv)
                     ImVec4 color;
 
                     sprintf(name, "##%d", idx); /* Label of item will be hidden if its name start with '##' .*/
-                    if (colIdx > 0) ImGui::SameLine();
+                    if (colIdx > 0)
+                    {
+                        // ImGui::Dummy(ImVec2(5.0f, 0.0f));
+                        ImGui::SameLine();
+                    }
                     // TODO: border boxes
                     ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
@@ -208,12 +220,13 @@ int main(int argc, char** argv)
                         }
                     }
 
-                    ImGui::PushStyleColor(ImGuiCol_Border, BLACK); /* Color of text */
-                    ImGui::PushStyleColor(ImGuiCol_Header, color); /* Color of background */
-                    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 10.0f);
+                    ImGui::PushStyleColor(ImGuiCol_Text, YELLOW);       /* Color of text        */
+                    // ImGui::PushStyleColor(ImGuiCol_Border, RED);        /* Color of border      */
+                    ImGui::PushStyleColor(ImGuiCol_Header, color);      /* Color of background  */
+                    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
+// ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 0.0f);
+                    
 
-                    // ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-                    ImGui::BeginChild((std::string(name) + "1").c_str(), ImVec2(blockSize, blockSize), true /* add border */, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav);
                     if (ImGui::Selectable(name, itemSelected, ImGuiSelectableFlags_None, ImVec2(blockSize, blockSize)))
                     {
                         /* Select a BLOCKED block unblock it. :) Confused enough? */
@@ -255,29 +268,42 @@ int main(int argc, char** argv)
                             pthread_mutex_unlock(&mutex);
                         }
                     }
+                    // draw a rectangle around this `selectable` manually: tired enough? 
+                    {
+                        ImVec2 topleft = GetBlockPosition(colIdx, rowIdx, blockSize);//ImVec2(4  + colIdx * (blockSize + 8) + mainWindowPosition.x - ImGui::GetScrollX(),
+                                                // 24 + rowIdx * (blockSize + 4) + mainWindowPosition.y - ImGui::GetScrollY());
+                        ImVec2 bottomright = ImVec2(topleft.x + blockSize + 8, topleft.y + blockSize + 5);
+                        ImGui::GetWindowDrawList()->AddRect(topleft, bottomright, IM_COL_BLACK, 0.0f, ImDrawFlags_None, BORDER_THICKNESS);
 
-                    ImGui::EndChild();
-                    ImGui::PopStyleVar();
+                    }
 
-                    ImGui::PopStyleVar();
                     ImGui::PopStyleColor();
                     ImGui::PopStyleColor();
+                    // ImGui::PopStyleVar();
+                    ImGui::PopStyleVar();
+                    ImGui::PopStyleVar();
                 }
             }
             
-            ImGui::PushStyleColor(ImGuiCol_Button, GREEN);
-            if (ImGui::Button("Choose Source"))
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 24.f);
+            // ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(300, 500));
+
+            /* dummy space to separate buttons and grid */
+            ImGui::Dummy(ImVec2(0.0f, 15.0f));
+            
+            ImGui::PushStyleColor(ImGuiCol_Button, WHITE);
+            if (ImGui::Button("Choose Source", BUTTON_SIZE))
                 choosingOpt = CHOOSE_SOURCE;
 
             ImGui::SameLine();
-            if (ImGui::Button("Choose target"))
+            if (ImGui::Button("Choose target", BUTTON_SIZE))
                 choosingOpt = CHOOSE_TARGET;
 
             ImGui::SameLine();
-            if (ImGui::Button("Choose blocked"))
+            if (ImGui::Button("Choose blocked", BUTTON_SIZE))
                 choosingOpt = CHOOSE_BLOCKED;
                 
-            if (ImGui::Button("Exec A Star") &&
+            if (ImGui::Button("Exec A Star", BUTTON_SIZE) &&
                 t_state != THREAD_RUNNING)
             {
                 shared.labels = labels;
@@ -285,6 +311,7 @@ int main(int argc, char** argv)
                 shared.windowSize.ncol = windowSize.ncol;
                 t_state = THREAD_RUNNING;
                 shared.state = &t_state;
+                shared.listCell = NULL;
                 int err = pthread_create(&thread_id,
                                          NULL,
                                          execAStar,
@@ -298,13 +325,22 @@ int main(int argc, char** argv)
                     return 1; // Error occurs.
                 }
             }
+            /* Thread finished finding, now print the result: */
+            if (t_state == THREAD_FINISHED ||
+                t_state == THREAD_END)
+            {                
+                endExec(shared.listCell, windowSize.ncol);
+                t_state = THREAD_END;
+            }
+
+                // ImGui::Text("\tscroll position. %f - %f.\t", ImGui::GetScrollX(), ImGui::GetScrollY()); 
             if (t_state == THREAD_END)
             {
                 pthread_join(thread_id, NULL);
-                t_state = THREAD_INITIALIZED;
+                // t_state = THREAD_INITIALIZED;
             }
-
-            if (ImGui::Button("RESET"))
+// circular the button
+            if (ImGui::Button("RESET", BUTTON_SIZE))
             {
                 pthread_mutex_lock(&mutex);
                 t_state = THREAD_END;
@@ -312,8 +348,9 @@ int main(int argc, char** argv)
                 pthread_mutex_unlock(&mutex);
             }
             ImGui::SameLine();
-            if (ImGui::Button("PAUSE/CONTINUE"))
+            if (ImGui::Button("PAUSE/CONTINUE", BUTTON_SIZE))
             {
+                drawLine = true;
                 pthread_mutex_lock(&mutex);
                 if (t_state == THREAD_RUNNING)
                     t_state = THREAD_PAUSED;
@@ -328,19 +365,20 @@ int main(int argc, char** argv)
                 ImGui::Text("\tPAUSED.\t"); 
             }
 
-            if (ImGui::Button("Random grid"))
+            if (ImGui::Button("Random grid", BUTTON_SIZE))
                 show_config_window = true;
 
             if (show_config_window)
             {
                 float blockedRatio = 0.3;
-
                 ImGui::Begin("Another Window", &show_config_window, ImGuiWindowFlags_AlwaysAutoResize);
-                ImGui::InputInt("Num row", &(windowSize.nrow));
-                ImGui::InputInt("Num col", &(windowSize.ncol));
+                ImGui::InputInt("Num row", &nrow);
+                ImGui::InputInt("Num col", &ncol);
                 ImGui::InputFloat("Blocked ratio", &blockedRatio);
-                if (ImGui::Button("Random grid"))
+                if (ImGui::Button("Random grid", BUTTON_SIZE))
                 {
+                    windowSize.nrow = nrow;
+                    windowSize.ncol = ncol;
                     show_config_window = false;
                     // TODO: Show warning in case blockedRatio is not in a satisfied range.
                     if (blockedRatio < 1.0f &&
@@ -348,13 +386,25 @@ int main(int argc, char** argv)
                         RandomGrid(&labels, &windowSize, blockedRatio);
                 }                
                 ImGui::SameLine();
-                if (ImGui::Button("Close"))
+                if (ImGui::Button("Close", BUTTON_SIZE))
                     show_config_window = false;
 
                 ImGui::End();
             }
 
-            if (ImGui::Button("QUIT") || /* either the user click QUIT, or `x` on the corner with a `initialized` thread */
+            // if(drawLine)
+            // {
+            //     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+            //     ImVec2 p1{1,2}, p2{100, 200};
+            //     ImU32 col = IM_COL32(255, 0, 0, 255); // RED
+            //     ImGui::BeginChild("##name", ImVec2(1000, 1000), false, ImGuiWindowFlags_NoDecoration);
+            //     draw_list->AddLine(p1, p2, col, 3.3);
+            //     // void ImDrawList::AddLine(const ImVec2& p1, const ImVec2& p2, ImU32 col, float thickness)
+            //     ImGui::EndChild();
+
+            // }
+
+            if (ImGui::Button("QUIT", BUTTON_SIZE) || /* either the user click QUIT, or `x` on the corner with a `initialized` thread */
                 (done &&
                     (t_state == THREAD_PAUSED ||
                      t_state == THREAD_RUNNING)))
@@ -365,7 +415,14 @@ int main(int argc, char** argv)
                 pthread_join(thread_id, NULL);
                 break;
             }
+            ImGui::PopStyleVar();
+            // ImGui::PopStyleVar();
                
+// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
+// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
+// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
+// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
+// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
             ImGui::PopStyleColor();
 
             /* Continuously parse a float from slider in range of 0.1f to 500.0f */

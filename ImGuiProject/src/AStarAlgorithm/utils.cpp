@@ -24,13 +24,14 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int sourceIdx = -1, targetIdx = -1;
 float stepPerSecs = 1.0f;
 int max_width = 1000, max_height = 700;
+int blockSize = 40;
+ImVec2 mainWindowPosition = ImVec2(0.0f, 0.0f);
 
-
-void reCalculateBlockSize(Grid* windowSize, int* blockSize)
+void reCalculateBlockSize(Grid* windowSize)
 {
     int maxBlockWidth = (int) max_width / (windowSize->ncol);
     int maxBlockHeight = (int) max_height / (windowSize->nrow);
-    *blockSize = MIN2(*blockSize, MIN2(maxBlockHeight, maxBlockWidth));
+    blockSize = MIN2(blockSize, MIN2(maxBlockHeight, maxBlockWidth));
 }
 
 /*
@@ -124,26 +125,55 @@ long getCurrentMicroSecs()
     return (long) now.tv_sec * (int)1e6 + now.tv_usec;
 }
 
+ImVec2 blockToPosition(ImVec2 block)
+{
+    float x = block.x * blockSize + blockSize / 2;
+    float y = block.y * blockSize + blockSize / 2;
+    return ImVec2(x, y);
+}
+
+void drawLine(ImDrawList* draw_list, Cell* from, Cell* to) /* Future job : draw arrow on a side of a line. */
+{
+    // // convert center of blocks to positions.
+    // // draw line on that positions 
+    // //      might need to use BeginChild... with on top...
+    ImVec2 fromPos = GetBlockCenter(GetBlockPosition(from->block.x, from->block.y, blockSize), blockSize); 
+    ImVec2 toPos   = GetBlockCenter(GetBlockPosition(to->block.x, to->block.y, blockSize), blockSize); 
+    draw_list->AddLine(fromPos, toPos, IM_COL_RED, 3.3);
+    // void ImDrawList::AddLine(const ImVec2& p1, const ImVec2& p2, ImU32 col, float thickness)
+
+    // ImGui::EndChild();
+    
+}
+
 void endExec(Cell* listCell, int ncol)
 {
     Cell* runningCell;
     int runningIdx;
     ImVec2 blk; // TODO: This variable seems redundant, can be optimized
+    // TO DRAW LINE
+    ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+    
+
 
     runningCell = &listCell[targetIdx];
     runningIdx = targetIdx;
-    std::cout << "Found a way to go from SOURCE to TARGET: " << std::endl;
+    // std::cout << "Found a way to go from SOURCE to TARGET: " << std::endl;
     while (runningIdx != sourceIdx)
     {
-        std::cout << "visit (" << runningCell->block.x << ", " << runningCell->block.y << ")" << std::endl;
+        // std::cout << "visit (" << runningCell->block.x << ", " << runningCell->block.y << ")" << std::endl;
+        drawLine(draw_list, runningCell->prev, runningCell);
         runningCell = runningCell->prev;
         runningIdx = GetIdxByBlock(runningCell->block, ncol);
         usleep(1/stepPerSecs * 1e6);
     }
+    // drawLine(draw_list, runningCell->prev, runningCell);
     /* runningIdx must be sourceIdx now: */
     blk = GetBlockByIdx(runningIdx, ncol);
-    std::cout << "visit (" << blk.x << ", " << blk.y << ")" << std::endl;
+    // std::cout << "visit (" << blk.x << ", " << blk.y << ")" << std::endl;
     // TODO: DRAW LINE
+    // ImGui::EndChild();
+
 }
 
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
@@ -177,6 +207,7 @@ void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
         /* Random a number to be BLOCKED (blockedRatio) or UNBLOCKED (1-blockedRatio - the rest) */
         int ranNum = rand() % 1000;
         if (ranNum < 1000 * blockedRatio)
+        // if (idx % 2)
             (*labels)[idx] = LBL_BLOCKED;
         else
             (*labels)[idx] = LBL_UNBLOCKED;
@@ -243,10 +274,11 @@ void *execAStar(void* arg)
 
         if (mainCellIdx == targetIdx)
         {
-            endExec(listCell, windowSize->ncol);
+            // endExec(listCell, windowSize->ncol);
+            shared->listCell = listCell;
 
             pthread_mutex_lock(&mutex);
-            *(shared->state) = THREAD_END;
+            *(shared->state) = THREAD_FINISHED;
             pthread_mutex_unlock(&mutex);
 
             break;
@@ -267,6 +299,9 @@ void *execAStar(void* arg)
         {
             /* Weird enough? This should not happen */
             printf("ERROR HAPPENED");
+            pthread_mutex_lock(&mutex);
+            *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
+            pthread_mutex_unlock(&mutex);
             return NULL;
         }
 
@@ -370,9 +405,9 @@ void *execAStar(void* arg)
         pthread_mutex_unlock(&mutex); // TODO: check this
     }
     
-    pthread_mutex_lock(&mutex);
-    *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
-    pthread_mutex_unlock(&mutex);
+    // pthread_mutex_lock(&mutex);
+    // *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
+    // pthread_mutex_unlock(&mutex);
 
     return NULL;
 }

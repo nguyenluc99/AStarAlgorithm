@@ -35,20 +35,20 @@
 
 #define GetIdxByBlock(blk, size) ((int)(blk.x + blk.y * size)) 
 
-#define CHECK_THREAD_END(state, toBeFreed) \
+#define CHECK_THREAD_EXITED(state, toBeFreed) \
 do { \
-        if (state  == THREAD_END) { \
+        if (state == THREAD_EXITED) { \
             free(toBeFreed); \
             return NULL; \
         } \
 } while(0);
 
-#define BUSY_DELAY_EXECUTION() \
+#define BUSY_DELAY_EXECUTION(state, toBeFreed, timeout) \
 do { \
     long prevTime = getCurrentMicroSecs(); \
-    while (getCurrentMicroSecs() - prevTime < 1/stepPerSecs * 1e6) \
+    while (getCurrentMicroSecs() - prevTime < timeout) \
     { \
-        CHECK_THREAD_END(*(shared->state), heuDistance); \
+        CHECK_THREAD_EXITED(state, toBeFreed); \
         usleep(100); \
     }; \
 } while(0); 
@@ -69,19 +69,18 @@ typedef enum BlockLabels
 
 typedef enum ChoosingLabel
 {
-    CHOOSE_UNBLOCKED,
     CHOOSE_SOURCE,
     CHOOSE_TARGET,
-    CHOOSE_BLOCKED
+    CHOOSE_BLOCKED_UNBLOCKED
 } ChoosingLabel;
 
 typedef enum ThreadState
 {
-    THREAD_INITIALIZED,
-    THREAD_RUNNING,
-    THREAD_PAUSED,
-    THREAD_FINISHED,
-    THREAD_END
+    THREAD_INITIALIZED,         /* Shared information is just initialized, not started*/
+    THREAD_RUNNING,             /* The child thread is running */
+    THREAD_PAUSED,              /* The child thread is paused */
+    THREAD_FINISHED,            /* The child thread finished execution => remain line-drawing status on the main screen */
+    THREAD_EXITED               /* The child thread is exited => joined => line-draw of previous run is cleared */
 } ThreadState;
 
 typedef struct Cell
@@ -112,8 +111,9 @@ typedef struct ThreadSearchingState // TODO: only lock item which might be modif
 } ThreadSearchingState;
 
 
+void initLabels(BlockLabels **labels, Grid* windowSize);
 void reCalculateBlockSize(Grid* windowSize);
 long getCurrentMicroSecs();
-void endExec(Cell* listCell, int ncol);
+void endExec(Cell* listCell, Grid windowSize);
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio);
 void *execAStar(void* arg);

@@ -25,6 +25,7 @@ int sourceIdx = -1, targetIdx = -1;
 float stepPerSecs = 1.0f;
 int max_width = 1000, max_height = 700;
 int blockSize = 40;
+float fontS = 13;
 ImVec2 mainWindowPosition = ImVec2(0.0f, 0.0f);
 
 void reCalculateBlockSize(Grid* windowSize)
@@ -32,6 +33,33 @@ void reCalculateBlockSize(Grid* windowSize)
     int maxBlockWidth = (int) max_width / (windowSize->ncol);
     int maxBlockHeight = (int) max_height / (windowSize->nrow);
     blockSize = MIN2(blockSize, MIN2(maxBlockHeight, maxBlockWidth));
+}
+
+void initLabels(BlockLabels **labels, Grid* windowSize)
+{
+    windowSize->ncol = 5;
+    windowSize->nrow = 5;
+    if (*labels)
+        free(*labels); // TODO: check: can I free it here?
+
+    *labels = (BlockLabels*) malloc(25 * sizeof(BlockLabels));
+
+    (*labels)[0]  = LBL_UNBLOCKED;  (*labels)[1]  = LBL_UNBLOCKED;
+    (*labels)[2]  = LBL_UNBLOCKED;  (*labels)[3]  = LBL_UNBLOCKED;
+    (*labels)[4]  = LBL_BLOCKED;    (*labels)[5]  = LBL_BLOCKED;
+    (*labels)[6]  = LBL_UNBLOCKED;  (*labels)[7]  = LBL_BLOCKED;
+    (*labels)[8]  = LBL_UNBLOCKED;  (*labels)[9]  = LBL_BLOCKED;
+    (*labels)[10] = LBL_UNBLOCKED;  (*labels)[11] = LBL_UNBLOCKED;
+    (*labels)[12] = LBL_UNBLOCKED;  (*labels)[13] = LBL_UNBLOCKED;
+    (*labels)[14] = LBL_BLOCKED;    (*labels)[15] = LBL_UNBLOCKED;
+    (*labels)[16] = LBL_BLOCKED;    (*labels)[17] = LBL_UNBLOCKED;
+    (*labels)[18] = LBL_BLOCKED;    (*labels)[19] = LBL_UNBLOCKED;
+    (*labels)[20] = LBL_UNBLOCKED;    (*labels)[21] = LBL_UNBLOCKED;
+    (*labels)[22] = LBL_UNBLOCKED;    (*labels)[23] = LBL_UNBLOCKED;
+    (*labels)[24] = LBL_UNBLOCKED;
+
+    sourceIdx = 0; targetIdx = 24;
+    assert((*labels)[sourceIdx] != LBL_BLOCKED && (*labels)[targetIdx] != LBL_BLOCKED);
 }
 
 /*
@@ -132,48 +160,103 @@ ImVec2 blockToPosition(ImVec2 block)
     return ImVec2(x, y);
 }
 
-void drawLine(ImDrawList* draw_list, Cell* from, Cell* to) /* Future job : draw arrow on a side of a line. */
+float getBottomX(Grid windowSize){return mainWindowPosition.x + max_width + fontS + windowSize.ncol * 8;}
+float getBottomY(Grid windowSize){return mainWindowPosition.y + max_height + fontS + windowSize.nrow * 4;}
+/* Check whether the point is out of the main window, with mainWindowPosition variable */
+bool outOfBox(ImVec2 point, Grid windowSize)
+{
+    return (point.x < mainWindowPosition.x + fontS + 4 ||
+            point.y < mainWindowPosition.y + fontS + 4 ||
+            point.x > getBottomX(windowSize) ||
+            point.y > getBottomY(windowSize));
+}
+
+
+void getDrawablePos(ImVec2& outside, ImVec2 inside, Grid windowSize)
+{
+    float topX = mainWindowPosition.x + fontS + 4; float bottomX = getBottomX(windowSize);  /* topX < bottomX */
+    float topY = mainWindowPosition.y + fontS + 4; float bottomY = getBottomY(windowSize); /* topY < bottomY */
+    if (outside.y < topY) /* higher than the main window */
+    {
+        float d1y  = topY - outside.y;
+        float dy   = inside.y - outside.y;
+        float dx   = inside.x - outside.x;
+        float d1x  = (float) dx/dy * d1y;
+        outside.x = outside.x + d1x;
+        outside.y = outside.y + d1y;
+    } 
+    if (outside.x < topX)
+    {
+        float d1x  = topX - outside.x;
+        float dx   = inside.x - outside.x;
+        float dy   = inside.y - outside.y;
+        float d1y  = (float) dy/dx * d1x;
+        outside.x = outside.x + d1x;
+        outside.y = outside.y + d1y;
+    }
+    if (outside.y > bottomY)
+    {
+        float d1y = outside.y - bottomY;
+        float dy = outside.y - inside.y;
+        float dx = outside.x - inside.x;
+        float d1x = (float) dx/dy * d1y;
+        outside.x -= d1x;
+        outside.y -= d1y;
+    }
+    if (outside.x > bottomX)
+    {
+        float d1x = outside.x - bottomX;
+        float dx = outside.x - inside.x;
+        float dy = outside.y - inside.y;
+        float d1y = (float) dy/dx * d1x;
+        outside.x -= d1x;
+        outside.y -= d1y;
+    }
+}
+void drawLine(ImDrawList* draw_list, Cell* from, Cell* to, Grid windowSize) /* Future job : draw arrow on a side of a line. */
 {
     // // convert center of blocks to positions.
     // // draw line on that positions 
     // //      might need to use BeginChild... with on top...
+    // TODO: check position of Scroll to be positive...
     ImVec2 fromPos = GetBlockCenter(GetBlockPosition(from->block.x, from->block.y, blockSize), blockSize); 
     ImVec2 toPos   = GetBlockCenter(GetBlockPosition(to->block.x, to->block.y, blockSize), blockSize); 
-    draw_list->AddLine(fromPos, toPos, IM_COL_RED, 3.3);
-    // void ImDrawList::AddLine(const ImVec2& p1, const ImVec2& p2, ImU32 col, float thickness)
+    if (outOfBox(fromPos, windowSize) && outOfBox(toPos, windowSize))
+        return;
 
-    // ImGui::EndChild();
-    
+    /* at least one of the two points is in the box now. */
+    // fromPos is outOfBox
+    if (outOfBox(fromPos, windowSize))
+    {
+        getDrawablePos(fromPos, toPos, windowSize);
+    } else if (outOfBox(toPos, windowSize))
+    {
+        getDrawablePos(toPos, fromPos, windowSize);
+    } 
+    draw_list->AddLine(fromPos, toPos, IM_COL_RED, 3.3);
 }
 
-void endExec(Cell* listCell, int ncol)
+void endExec(Cell* listCell, Grid windowSize)
 {
     Cell* runningCell;
     int runningIdx;
-    ImVec2 blk; // TODO: This variable seems redundant, can be optimized
-    // TO DRAW LINE
+    int ncol = windowSize.ncol;
+    ImVec2 blk;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     
-
-
     runningCell = &listCell[targetIdx];
     runningIdx = targetIdx;
-    // std::cout << "Found a way to go from SOURCE to TARGET: " << std::endl;
+
     while (runningIdx != sourceIdx)
     {
         // std::cout << "visit (" << runningCell->block.x << ", " << runningCell->block.y << ")" << std::endl;
-        drawLine(draw_list, runningCell->prev, runningCell);
+        drawLine(draw_list, runningCell->prev, runningCell, windowSize);
         runningCell = runningCell->prev;
         runningIdx = GetIdxByBlock(runningCell->block, ncol);
         usleep(1/stepPerSecs * 1e6);
     }
-    // drawLine(draw_list, runningCell->prev, runningCell);
     /* runningIdx must be sourceIdx now: */
-    blk = GetBlockByIdx(runningIdx, ncol);
-    // std::cout << "visit (" << blk.x << ", " << blk.y << ")" << std::endl;
-    // TODO: DRAW LINE
-    // ImGui::EndChild();
-
+    // drawLine(draw_list, runningCell->prev, runningCell, windowSize);
 }
 
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
@@ -262,7 +345,7 @@ void *execAStar(void* arg)
          * two nested for-loop condition below. But we just leave
          * it here, and might remove it later.
          */
-        CHECK_THREAD_END(*(shared->state), heuDistance);
+        CHECK_THREAD_EXITED(*(shared->state), heuDistance);
 
         int padx, pady;
         Cell* mainCell;
@@ -272,14 +355,10 @@ void *execAStar(void* arg)
         openList.erase(openList.begin());
         mainCellIdx = GetIdxByBlock(mainCell->block, windowSize->ncol);
 
+        /* Finally reach the TARGET? */
         if (mainCellIdx == targetIdx)
         {
-            // endExec(listCell, windowSize->ncol);
             shared->listCell = listCell;
-
-            pthread_mutex_lock(&mutex);
-            *(shared->state) = THREAD_FINISHED;
-            pthread_mutex_unlock(&mutex);
 
             break;
         } 
@@ -300,7 +379,7 @@ void *execAStar(void* arg)
             /* Weird enough? This should not happen */
             printf("ERROR HAPPENED");
             pthread_mutex_lock(&mutex);
-            *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
+            *(shared->state) = THREAD_EXITED; /* do we need this? Am I sure that the solution is founded?*/
             pthread_mutex_unlock(&mutex);
             return NULL;
         }
@@ -317,7 +396,7 @@ void *execAStar(void* arg)
                 while(*(shared->state) == THREAD_PAUSED) {
                     // deadlock might occur if we PAUSE at child, RESET at main and dont check this if-else
                 };
-                CHECK_THREAD_END(*(shared->state), heuDistance);
+                CHECK_THREAD_EXITED(*(shared->state), heuDistance);
 
                 float successor_f, successor_g, successor_h;
                 Cell* successorCell;
@@ -353,7 +432,7 @@ void *execAStar(void* arg)
                  * Because there might be a RESET signal which interrupts this execution immediately,
                  * we use `busy waiting` so that we can exit the system when `forceEnd` is set
                  */
-                BUSY_DELAY_EXECUTION();
+                BUSY_DELAY_EXECUTION(*(shared->state), heuDistance, 1/stepPerSecs * 1e6);
 
                 /* process each successor */
                 successor_g = mainCell->g + adjDistance(padx, pady);    /* from source to successor */
@@ -390,12 +469,12 @@ void *execAStar(void* arg)
             }
         }
 
-        BUSY_DELAY_EXECUTION();
+        BUSY_DELAY_EXECUTION(*(shared->state), heuDistance, 1/stepPerSecs * 1e6);
         /* Un-macro version: */
         // prevTime = getCurrentMicroSecs();
         // while (getCurrentMicroSecs() - prevTime < 1/stepPerSecs * 1e6)// ~ waitingTimeInterval
         // {
-        //     CHECK_THREAD_END(*(shared->state), heuDistance);
+        //     CHECK_THREAD_EXITED(*(shared->state), heuDistance);
         //     usleep(100); /* just waiting */
         // };
 
@@ -405,9 +484,9 @@ void *execAStar(void* arg)
         pthread_mutex_unlock(&mutex); // TODO: check this
     }
     
-    // pthread_mutex_lock(&mutex);
-    // *(shared->state) = THREAD_END; /* do we need this? Am I sure that the solution is founded?*/
-    // pthread_mutex_unlock(&mutex);
+    pthread_mutex_lock(&mutex);
+    *(shared->state) = THREAD_FINISHED;
+    pthread_mutex_unlock(&mutex);
 
     return NULL;
 }

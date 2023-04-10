@@ -31,33 +31,8 @@ extern int   max_width, max_height;
 extern pthread_mutex_t mutex;
 extern int blockSize;
 extern ImVec2 mainWindowPosition;
+extern float fontS;
 
-void initLabels(BlockLabels **labels, Grid* windowSize)
-{
-    windowSize->ncol = 5;
-    windowSize->nrow = 5;
-    if (*labels)
-        free(*labels); // TODO: check: can I free it here?
-
-    *labels = (BlockLabels*) malloc(25 * sizeof(BlockLabels));
-
-    (*labels)[0]  = LBL_UNBLOCKED;  (*labels)[1]  = LBL_UNBLOCKED;
-    (*labels)[2]  = LBL_UNBLOCKED;  (*labels)[3]  = LBL_UNBLOCKED;
-    (*labels)[4]  = LBL_BLOCKED;    (*labels)[5]  = LBL_BLOCKED;
-    (*labels)[6]  = LBL_UNBLOCKED;  (*labels)[7]  = LBL_BLOCKED;
-    (*labels)[8]  = LBL_UNBLOCKED;  (*labels)[9]  = LBL_BLOCKED;
-    (*labels)[10] = LBL_UNBLOCKED;  (*labels)[11] = LBL_UNBLOCKED;
-    (*labels)[12] = LBL_UNBLOCKED;  (*labels)[13] = LBL_UNBLOCKED;
-    (*labels)[14] = LBL_BLOCKED;    (*labels)[15] = LBL_UNBLOCKED;
-    (*labels)[16] = LBL_BLOCKED;    (*labels)[17] = LBL_UNBLOCKED;
-    (*labels)[18] = LBL_BLOCKED;    (*labels)[19] = LBL_UNBLOCKED;
-    (*labels)[20] = LBL_UNBLOCKED;    (*labels)[21] = LBL_UNBLOCKED;
-    (*labels)[22] = LBL_UNBLOCKED;    (*labels)[23] = LBL_UNBLOCKED;
-    (*labels)[24] = LBL_UNBLOCKED;
-
-    sourceIdx = 0; targetIdx = 24;
-    assert((*labels)[sourceIdx] != LBL_BLOCKED && (*labels)[targetIdx] != LBL_BLOCKED);
-}
 
 // Main code
 int main(int argc, char** argv)
@@ -111,18 +86,16 @@ int main(int argc, char** argv)
 
     // Our state
     bool show_demo_window = true;
-    // bool show_another_window = false;
-    // ImVec4 clear_color = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 
     // Main loop
     bool done = false;
-    ChoosingLabel choosingOpt = CHOOSE_UNBLOCKED;
+    ChoosingLabel choosingOpt = CHOOSE_BLOCKED_UNBLOCKED;
     // 2. Set window size, archive from user input
     Grid windowSize;
-    windowSize.nrow = 5;
-    windowSize.ncol = 5;
-        // TODO: calulate each box size according to the number of block and total windows size
-    // int blockSize = 40;
+    int nrow = 5,
+        ncol = 5;
+    windowSize.nrow = nrow;
+    windowSize.ncol = ncol;
     
     BlockLabels *labels = NULL;
     initLabels(&labels, &windowSize);
@@ -130,9 +103,8 @@ int main(int argc, char** argv)
     pthread_t thread_id;
     bool show_config_window = false;
     ThreadSearchingState shared;
-    bool drawLine = false;
-    int nrow = windowSize.nrow,
-        ncol = windowSize.ncol;
+    char resultMsg[50];
+    resultMsg[0] = 0;
 
     while (!done)
     {
@@ -152,7 +124,10 @@ int main(int argc, char** argv)
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // ImGui::SetNextWindowSize(ImVec2(1200, 1000));
+        // ImGui::ImFont *fontA = ImGuiOverlay::AddDefaultFont(13);
+        fontS = ImGui::GetFont()->FontSize;
+
+        // ImGui::SetNextWindowSize(ImVec2(max_width, max_height));
         ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_AlwaysAutoResize);
         mainWindowPosition = ImGui::GetWindowPos();
 
@@ -170,7 +145,7 @@ int main(int argc, char** argv)
                 {
                     char name[16];
                     int idx = windowSize.ncol * rowIdx + colIdx;
-                    bool itemSelected = false;
+                    // bool itemSelected = false;
                     ImVec4 color;
 
                     sprintf(name, "##%d", idx); /* Label of item will be hidden if its name start with '##' .*/
@@ -185,35 +160,35 @@ int main(int argc, char** argv)
                     if (idx == sourceIdx)
                     {
                         color = GREEN;
-                        itemSelected = true;
+                        // itemSelected = true;
                     }
                     else if (idx == targetIdx)
                     {
                         color = RED;
-                        itemSelected = true;
+                        // itemSelected = true;
                     }
                     else
                     {
                         switch (labels[idx])
                         {
                             case LBL_UNBLOCKED:
-                                itemSelected = true;
+                                // itemSelected = true;
                                 break;
                             case LBL_BLOCKED:
                                 color = GRAY;
-                                itemSelected = true;
+                                // itemSelected = true;
                                 break;
                             case LBL_VISITED:
                                 color = BLUE;
-                                itemSelected = true;
+                                // itemSelected = true;
                                 break;
                             case LBL_VISITING:
                                 color = YELLOW;
-                                itemSelected = true;
+                                // itemSelected = true;
                                 break;
                             case LBL_TOBEVISITED:
                                 color = LIGHTBLUE;
-                                itemSelected = true;
+                                // itemSelected = true;
                                 break;
                             default:
                                 break;
@@ -221,27 +196,26 @@ int main(int argc, char** argv)
                     }
 
                     ImGui::PushStyleColor(ImGuiCol_Text, YELLOW);       /* Color of text        */
-                    // ImGui::PushStyleColor(ImGuiCol_Border, RED);        /* Color of border      */
                     ImGui::PushStyleColor(ImGuiCol_Header, color);      /* Color of background  */
                     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
 // ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 0.0f);
                     
 
-                    if (ImGui::Selectable(name, itemSelected, ImGuiSelectableFlags_None, ImVec2(blockSize, blockSize)))
+                    if (ImGui::Selectable(name, true, ImGuiSelectableFlags_None, ImVec2(blockSize, blockSize)))
                     {
-                        /* Select a BLOCKED block unblock it. :) Confused enough? */
-                        if (labels[idx] != LBL_UNBLOCKED)
-                        {
-                            pthread_mutex_lock(&mutex);
-                            labels[idx] = LBL_UNBLOCKED;
-                            /* If the block is SOURCE or TARGET, unselect it. */
-                            if (sourceIdx == idx)
-                                sourceIdx = -1;
-                            else if (targetIdx == idx)
-                                targetIdx = -1;
-                            pthread_mutex_unlock(&mutex);
-                        }
-                        else /* The block is not BLOCKED? => Set the label of the block depending on the choosingOpt value. */
+                        // /* Select a BLOCKED block unblock it. :) Confused enough? */
+                        // if (labels[idx] != LBL_UNBLOCKED)
+                        // {
+                        //     pthread_mutex_lock(&mutex);
+                        //     labels[idx] = LBL_UNBLOCKED;
+                        //     /* If the block is SOURCE or TARGET, unselect it. */
+                        //     if (sourceIdx == idx)
+                        //         sourceIdx = -1;
+                        //     else if (targetIdx == idx)
+                        //         targetIdx = -1;
+                        //     pthread_mutex_unlock(&mutex);
+                        // }
+                        // else /* The block is not BLOCKED? => Set the label of the block depending on the choosingOpt value. */
                         // TODO: blocked => target, source: OK
                         // but: target => unblocked => blocked
                         {
@@ -250,17 +224,22 @@ int main(int argc, char** argv)
                             {
                                 case CHOOSE_SOURCE:
                                     labels[sourceIdx] = LBL_UNBLOCKED;
+                                    if (idx == targetIdx)
+                                        targetIdx = -1;
                                     sourceIdx = idx;
                                     break;
                                 case CHOOSE_TARGET:
                                     labels[targetIdx] = LBL_UNBLOCKED;
+                                    if (idx == sourceIdx)
+                                        sourceIdx = -1;
                                     targetIdx = idx;
                                     break;
-                                case CHOOSE_BLOCKED:
-                                    labels[idx] = LBL_BLOCKED;
-                                    break;
-                                case CHOOSE_UNBLOCKED:
-                                    labels[idx] = LBL_UNBLOCKED;
+                                case CHOOSE_BLOCKED_UNBLOCKED:
+                                    labels[idx] = (BlockLabels) (LBL_BLOCKED + LBL_UNBLOCKED - (int)labels[idx]);
+                                    if (idx == sourceIdx)
+                                        sourceIdx = -1;
+                                    else if (idx == targetIdx)
+                                        targetIdx = -1;
                                     break;
                                 default:
                                     break;
@@ -270,24 +249,77 @@ int main(int argc, char** argv)
                     }
                     // draw a rectangle around this `selectable` manually: tired enough? 
                     {
-                        ImVec2 topleft = GetBlockPosition(colIdx, rowIdx, blockSize);//ImVec2(4  + colIdx * (blockSize + 8) + mainWindowPosition.x - ImGui::GetScrollX(),
-                                                // 24 + rowIdx * (blockSize + 4) + mainWindowPosition.y - ImGui::GetScrollY());
+                        ImVec2 topleft = GetBlockPosition(colIdx, rowIdx, blockSize);
                         ImVec2 bottomright = ImVec2(topleft.x + blockSize + 8, topleft.y + blockSize + 5);
                         ImGui::GetWindowDrawList()->AddRect(topleft, bottomright, IM_COL_BLACK, 0.0f, ImDrawFlags_None, BORDER_THICKNESS);
-
                     }
 
                     ImGui::PopStyleColor();
                     ImGui::PopStyleColor();
-                    // ImGui::PopStyleVar();
                     ImGui::PopStyleVar();
                     ImGui::PopStyleVar();
                 }
             }
             
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 24.f);
-            // ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(300, 500));
 
+            /* Block notation: */
+            ImGui::Dummy(ImVec2(0.0f, 15.0f));
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, GREEN);      /* Color of background  */
+                ImGui::Selectable("##demoSource", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Source");
+            }
+            ImGui::SameLine();
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, RED);      /* Color of background  */
+                ImGui::Selectable("##demoTarget", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Target");
+            }
+            ImGui::SameLine();
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, WHITE);      /* Color of background  */
+                ImGui::Selectable("##demoBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Unblocked");
+            }
+            ImGui::SameLine();
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, GRAY);      /* Color of background  */
+                ImGui::Selectable("##demoUnBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Blocked");
+            }
+            ImGui::Dummy(ImVec2(0.0f, 10.0f));
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, BLUE);      /* Color of background  */
+                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Visited");
+            }
+            ImGui::SameLine();
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, LIGHTBLUE);      /* Color of background  */
+                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "To be visited");
+            }
+            ImGui::SameLine();
+            {
+                ImGui::PushStyleColor(ImGuiCol_Header, YELLOW);      /* Color of background  */
+                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("%s", "Visiting");
+            }
             /* dummy space to separate buttons and grid */
             ImGui::Dummy(ImVec2(0.0f, 15.0f));
             
@@ -300,9 +332,10 @@ int main(int argc, char** argv)
                 choosingOpt = CHOOSE_TARGET;
 
             ImGui::SameLine();
-            if (ImGui::Button("Choose blocked", BUTTON_SIZE))
-                choosingOpt = CHOOSE_BLOCKED;
-                
+            if (ImGui::Button("Choose blocked/unblocked", BUTTON_SIZE))
+                choosingOpt = CHOOSE_BLOCKED_UNBLOCKED;
+
+            ImGui::PushStyleColor(ImGuiCol_Button, GREEN);
             if (ImGui::Button("Exec A Star", BUTTON_SIZE) &&
                 t_state != THREAD_RUNNING)
             {
@@ -316,41 +349,52 @@ int main(int argc, char** argv)
                                          NULL,
                                          execAStar,
                                          (void*) &shared);
-                if(err != 0)
+                resultMsg[0] = 0;
+                if (err != 0)
                 {
                     /* Ask the child to stop */
-                    t_state = THREAD_END;
+                    pthread_mutex_lock(&mutex);
+                    t_state = THREAD_EXITED;
+                    pthread_mutex_unlock(&mutex);
+
                     /* now we can join the child before returning */
-                    pthread_join(thread_id, NULL);
+                    pthread_join(thread_id, NULL); // deadlock should not occur here.
                     return 1; // Error occurs.
                 }
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Random grid", BUTTON_SIZE))
+                show_config_window = true;
+            ImGui::PopStyleColor();
+            
             /* Thread finished finding, now print the result: */
-            if (t_state == THREAD_FINISHED ||
-                t_state == THREAD_END)
-            {                
-                endExec(shared.listCell, windowSize.ncol);
-                t_state = THREAD_END;
-            }
-
-                // ImGui::Text("\tscroll position. %f - %f.\t", ImGui::GetScrollX(), ImGui::GetScrollY()); 
-            if (t_state == THREAD_END)
+            if (t_state == THREAD_FINISHED)
             {
-                pthread_join(thread_id, NULL);
-                // t_state = THREAD_INITIALIZED;
+                if (shared.listCell != NULL)
+                {
+                /* print the path from TARGET to SOURCE */     
+                endExec(shared.listCell, windowSize);
+                sprintf(resultMsg, "\tEXECUTION DONE.\t");
+                }
+                else
+                {
+                    sprintf(resultMsg, "\tNOT FOUND ANY DIRECTION.\t");
+                }
             }
-// circular the button
+            ImGui::SameLine();
+            ImGui::Text("%s", resultMsg);
+
             if (ImGui::Button("RESET", BUTTON_SIZE))
             {
                 pthread_mutex_lock(&mutex);
-                t_state = THREAD_END;
+                t_state = THREAD_EXITED;
                 initLabels(&labels, &windowSize);
                 pthread_mutex_unlock(&mutex);
+                resultMsg[0] = 0;
             }
             ImGui::SameLine();
             if (ImGui::Button("PAUSE/CONTINUE", BUTTON_SIZE))
             {
-                drawLine = true;
                 pthread_mutex_lock(&mutex);
                 if (t_state == THREAD_RUNNING)
                     t_state = THREAD_PAUSED;
@@ -359,14 +403,19 @@ int main(int argc, char** argv)
                 pthread_mutex_unlock(&mutex);
             }
 
+            if (t_state == THREAD_EXITED)
+            {
+                pthread_join(thread_id, NULL);
+                pthread_mutex_lock(&mutex);
+                t_state = THREAD_INITIALIZED;
+                pthread_mutex_unlock(&mutex);
+            }
+            
             if (t_state == THREAD_PAUSED)
             {
                 ImGui::SameLine();
                 ImGui::Text("\tPAUSED.\t"); 
             }
-
-            if (ImGui::Button("Random grid", BUTTON_SIZE))
-                show_config_window = true;
 
             if (show_config_window)
             {
@@ -392,29 +441,23 @@ int main(int argc, char** argv)
                 ImGui::End();
             }
 
-            // if(drawLine)
-            // {
-            //     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-            //     ImVec2 p1{1,2}, p2{100, 200};
-            //     ImU32 col = IM_COL32(255, 0, 0, 255); // RED
-            //     ImGui::BeginChild("##name", ImVec2(1000, 1000), false, ImGuiWindowFlags_NoDecoration);
-            //     draw_list->AddLine(p1, p2, col, 3.3);
-            //     // void ImDrawList::AddLine(const ImVec2& p1, const ImVec2& p2, ImU32 col, float thickness)
-            //     ImGui::EndChild();
 
-            // }
 
+            ImGui::PushStyleColor(ImGuiCol_Button, RED);
             if (ImGui::Button("QUIT", BUTTON_SIZE) || /* either the user click QUIT, or `x` on the corner with a `initialized` thread */
                 (done &&
                     (t_state == THREAD_PAUSED ||
                      t_state == THREAD_RUNNING)))
             {
                 /* Ask the child to stop */
-                t_state = THREAD_END;// endThread = true;
+                pthread_mutex_unlock(&mutex);
+                t_state = THREAD_EXITED;
+                pthread_mutex_lock(&mutex);
                 /* now we can join the child before quiting */
                 pthread_join(thread_id, NULL);
                 break;
             }
+            ImGui::PopStyleColor();
             ImGui::PopStyleVar();
             // ImGui::PopStyleVar();
                

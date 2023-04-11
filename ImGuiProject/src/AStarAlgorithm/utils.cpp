@@ -30,9 +30,71 @@ ImVec2 mainWindowPosition = ImVec2(0.0f, 0.0f);
 
 void reCalculateBlockSize(Grid* windowSize)
 {
+    int defaultBlockSize = 40;
     int maxBlockWidth = (int) max_width / (windowSize->ncol);
     int maxBlockHeight = (int) max_height / (windowSize->nrow);
-    blockSize = MIN2(blockSize, MIN2(maxBlockHeight, maxBlockWidth));
+    blockSize = MIN2(defaultBlockSize, MIN2(maxBlockHeight, maxBlockWidth));
+}
+
+void printBlockNotation()
+{
+    /* Block notation: */
+    ImGui::Dummy(ImVec2(0.0f, 15.0f));
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, GREEN);
+        ImGui::Selectable("##demoSource", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Source");
+    }
+    ImGui::SameLine();
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, RED);
+        ImGui::Selectable("##demoTarget", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Target");
+    }
+    ImGui::SameLine();
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, WHITE);
+        ImGui::Selectable("##demoBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Unblocked");
+    }
+    ImGui::SameLine();
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, GRAY);
+        ImGui::Selectable("##demoUnBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Blocked");
+    }
+    ImGui::Dummy(ImVec2(0.0f, 10.0f));
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, BLUE);
+        ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Visited");
+    }
+    ImGui::SameLine();
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, LIGHTBLUE);
+        ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "To be visited");
+    }
+    ImGui::SameLine();
+    {
+        ImGui::PushStyleColor(ImGuiCol_Header, YELLOW);
+        ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::Text("%s", "Visiting");
+    }
 }
 
 void initLabels(BlockLabels **labels, Grid* windowSize)
@@ -141,8 +203,10 @@ bool isValidIdx(int idx, int numElement)
 
 float adjDistance(int padx, int pady)
 {
-    if (padx == 0 && pady == 0) return 0.0f;
-    if (padx == 0 || pady == 0) return 1.0f;
+    if (padx == 0 && pady == 0)
+        return 0.0f;
+    if (padx == 0 || pady == 0)
+        return 1.0f;
     return (float) SQRT2;
 }
 
@@ -166,7 +230,7 @@ float getBottomY(Grid windowSize){return mainWindowPosition.y + max_height + fon
 bool outOfBox(ImVec2 point, Grid windowSize)
 {
     return (point.x < mainWindowPosition.x + fontS + 4 ||
-            point.y < mainWindowPosition.y + fontS + 4 ||
+            point.y < mainWindowPosition.y - fontS ||
             point.x > getBottomX(windowSize) ||
             point.y > getBottomY(windowSize));
 }
@@ -175,7 +239,7 @@ bool outOfBox(ImVec2 point, Grid windowSize)
 void getDrawablePos(ImVec2& outside, ImVec2 inside, Grid windowSize)
 {
     float topX = mainWindowPosition.x + fontS + 4; float bottomX = getBottomX(windowSize);  /* topX < bottomX */
-    float topY = mainWindowPosition.y + fontS + 4; float bottomY = getBottomY(windowSize); /* topY < bottomY */
+    float topY = mainWindowPosition.y - fontS; float bottomY = getBottomY(windowSize); /* topY < bottomY */
     if (outside.y < topY) /* higher than the main window */
     {
         float d1y  = topY - outside.y;
@@ -183,7 +247,7 @@ void getDrawablePos(ImVec2& outside, ImVec2 inside, Grid windowSize)
         float dx   = inside.x - outside.x;
         float d1x  = (float) dx/dy * d1y;
         outside.x = outside.x + d1x;
-        outside.y = outside.y + d1y;
+        outside.y = outside.y + d1y; /* Handy enough? :( */
     } 
     if (outside.x < topX)
     {
@@ -213,27 +277,21 @@ void getDrawablePos(ImVec2& outside, ImVec2 inside, Grid windowSize)
         outside.y -= d1y;
     }
 }
-void drawLine(ImDrawList* draw_list, Cell* from, Cell* to, Grid windowSize) /* Future job : draw arrow on a side of a line. */
+
+void drawLine(ImDrawList* draw_list, Cell* from, Cell* to, Grid windowSize) /* TODO: draw arrow on a side of a line. */
 {
-    // // convert center of blocks to positions.
-    // // draw line on that positions 
-    // //      might need to use BeginChild... with on top...
-    // TODO: check position of Scroll to be positive...
     ImVec2 fromPos = GetBlockCenter(GetBlockPosition(from->block.x, from->block.y, blockSize), blockSize); 
     ImVec2 toPos   = GetBlockCenter(GetBlockPosition(to->block.x, to->block.y, blockSize), blockSize); 
     if (outOfBox(fromPos, windowSize) && outOfBox(toPos, windowSize))
         return;
 
     /* at least one of the two points is in the box now. */
-    // fromPos is outOfBox
     if (outOfBox(fromPos, windowSize))
-    {
         getDrawablePos(fromPos, toPos, windowSize);
-    } else if (outOfBox(toPos, windowSize))
-    {
+    else if (outOfBox(toPos, windowSize))
         getDrawablePos(toPos, fromPos, windowSize);
-    } 
-    draw_list->AddLine(fromPos, toPos, IM_COL_RED, 3.3);
+
+    draw_list->AddLine(fromPos, toPos, IM_COL_RED, LINE_THICKNESS);
 }
 
 void endExec(Cell* listCell, Grid windowSize)
@@ -241,7 +299,6 @@ void endExec(Cell* listCell, Grid windowSize)
     Cell* runningCell;
     int runningIdx;
     int ncol = windowSize.ncol;
-    ImVec2 blk;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     
     runningCell = &listCell[targetIdx];
@@ -249,14 +306,10 @@ void endExec(Cell* listCell, Grid windowSize)
 
     while (runningIdx != sourceIdx)
     {
-        // std::cout << "visit (" << runningCell->block.x << ", " << runningCell->block.y << ")" << std::endl;
         drawLine(draw_list, runningCell->prev, runningCell, windowSize);
         runningCell = runningCell->prev;
         runningIdx = GetIdxByBlock(runningCell->block, ncol);
-        usleep(1/stepPerSecs * 1e6);
     }
-    /* runningIdx must be sourceIdx now: */
-    // drawLine(draw_list, runningCell->prev, runningCell, windowSize);
 }
 
 void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
@@ -271,7 +324,7 @@ void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
     *labels = (BlockLabels*) malloc(numElement * sizeof(BlockLabels));
     pthread_mutex_unlock(&mutex);
 
-    /* Random a number between 0 and numElement to be source: */
+    /* Random two unique numbers between 0 and numElement to be source and target: */
     sourceIdx = rand() % numElement;
     targetIdx = -1;
     do {
@@ -290,7 +343,6 @@ void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
         /* Random a number to be BLOCKED (blockedRatio) or UNBLOCKED (1-blockedRatio - the rest) */
         int ranNum = rand() % 1000;
         if (ranNum < 1000 * blockedRatio)
-        // if (idx % 2)
             (*labels)[idx] = LBL_BLOCKED;
         else
             (*labels)[idx] = LBL_UNBLOCKED;
@@ -481,7 +533,7 @@ void *execAStar(void* arg)
         pthread_mutex_lock(&mutex);
         if (mainCellIdx != sourceIdx)
             labels[mainCellIdx] = LBL_VISITED;
-        pthread_mutex_unlock(&mutex); // TODO: check this
+        pthread_mutex_unlock(&mutex);
     }
     
     pthread_mutex_lock(&mutex);

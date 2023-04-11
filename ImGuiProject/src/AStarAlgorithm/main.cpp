@@ -23,6 +23,7 @@
 
 #define MAIN_SCREEN_FPS         60
 #define BUTTON_SIZE             ImVec2(120, 30)
+#define BUTTON_SIZE_LARGE       ImVec2(200, 30)
 
 
 extern int   sourceIdx, targetIdx;
@@ -34,7 +35,6 @@ extern ImVec2 mainWindowPosition;
 extern float fontS;
 
 
-// Main code
 int main(int argc, char** argv)
 {
     // Setup SDL
@@ -42,11 +42,6 @@ int main(int argc, char** argv)
     {
         printf("Error: %s\n", SDL_GetError());
         return -1;
-    }
-
-    if (argc == 3) {
-        max_width = atoi(argv[1]);
-        max_height = atoi(argv[2]);
     }
 
     // From 2.0.18: Enable native IME.
@@ -64,9 +59,7 @@ int main(int argc, char** argv)
     SDL_Window* window = SDL_CreateWindow("A Star algorithm demonstration program", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
-    // SDL_DisplayMode mode;
-    // mode.refresh_rate = 10;
-    // SDL_SetWindowDisplayMode(window, &mode);
+
     SDL_GL_SetSwapInterval(1); // Enable vsync
 
     // Setup Dear ImGui context
@@ -84,13 +77,11 @@ int main(int argc, char** argv)
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL2_Init();
 
-    // Our state
-    bool show_demo_window = true;
 
     // Main loop
     bool done = false;
     ChoosingLabel choosingOpt = CHOOSE_BLOCKED_UNBLOCKED;
-    // 2. Set window size, archive from user input
+
     Grid windowSize;
     int nrow = 5,
         ncol = 5;
@@ -104,6 +95,8 @@ int main(int argc, char** argv)
     bool show_config_window = false;
     ThreadSearchingState shared;
     char resultMsg[50];
+    bool show_warning_init_new_state = false;
+    float blockedRatio = 0.3;
     resultMsg[0] = 0;
 
     while (!done)
@@ -124,100 +117,80 @@ int main(int argc, char** argv)
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // ImGui::ImFont *fontA = ImGuiOverlay::AddDefaultFont(13);
         fontS = ImGui::GetFont()->FontSize;
 
-        // ImGui::SetNextWindowSize(ImVec2(max_width, max_height));
-        ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-        mainWindowPosition = ImGui::GetWindowPos();
+        /* 
+         * Get size of the main window and assign it to the subframe
+         * so that the subframe can cover the whole window.
+         * It is a little bit handy, though.
+         */
+        SDL_GetWindowSize(window, &max_width, &max_height);
+        ImGui::SetNextWindowSize(ImVec2(max_width, max_height));
+        ImGui::SetWindowPos("A star algo", ImVec2(0.0f, 0.0f), ImGuiCond_FirstUseEver) ;
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Dummy(ImVec2(0.0f, 2*fontS));
+        mainWindowPosition = ImGui::GetWindowPos();
+        mainWindowPosition.y += 2*fontS + 4; /* Magic number, as we are hiding the frame name: "A star algo"*/
 
         reCalculateBlockSize(&windowSize);
-        // 3. Show a window of size windowSize.
         {
             for (int rowIdx = 0; rowIdx < windowSize.nrow; rowIdx++)
             {
-                // ImGui::Dummy(ImVec2(0.0f, 5.0f));
                 for (int colIdx = 0; colIdx < windowSize.ncol; colIdx++)
                 {
                     char name[16];
                     int idx = windowSize.ncol * rowIdx + colIdx;
-                    // bool itemSelected = false;
                     ImVec4 color;
 
                     sprintf(name, "##%d", idx); /* Label of item will be hidden if its name start with '##' .*/
                     if (colIdx > 0)
-                    {
-                        // ImGui::Dummy(ImVec2(5.0f, 0.0f));
                         ImGui::SameLine();
-                    }
-                    // TODO: border boxes
+
                     ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
                     if (idx == sourceIdx)
                     {
                         color = GREEN;
-                        // itemSelected = true;
                     }
                     else if (idx == targetIdx)
                     {
                         color = RED;
-                        // itemSelected = true;
                     }
                     else
                     {
                         switch (labels[idx])
                         {
                             case LBL_UNBLOCKED:
-                                // itemSelected = true;
+                                color = WHITE;
                                 break;
                             case LBL_BLOCKED:
                                 color = GRAY;
-                                // itemSelected = true;
                                 break;
                             case LBL_VISITED:
                                 color = BLUE;
-                                // itemSelected = true;
                                 break;
                             case LBL_VISITING:
                                 color = YELLOW;
-                                // itemSelected = true;
                                 break;
                             case LBL_TOBEVISITED:
                                 color = LIGHTBLUE;
-                                // itemSelected = true;
                                 break;
                             default:
                                 break;
                         }
                     }
 
-                    ImGui::PushStyleColor(ImGuiCol_Text, YELLOW);       /* Color of text        */
                     ImGui::PushStyleColor(ImGuiCol_Header, color);      /* Color of background  */
                     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
-// ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 0.0f);
-                    
 
                     if (ImGui::Selectable(name, true, ImGuiSelectableFlags_None, ImVec2(blockSize, blockSize)))
                     {
-                        // /* Select a BLOCKED block unblock it. :) Confused enough? */
-                        // if (labels[idx] != LBL_UNBLOCKED)
-                        // {
-                        //     pthread_mutex_lock(&mutex);
-                        //     labels[idx] = LBL_UNBLOCKED;
-                        //     /* If the block is SOURCE or TARGET, unselect it. */
-                        //     if (sourceIdx == idx)
-                        //         sourceIdx = -1;
-                        //     else if (targetIdx == idx)
-                        //         targetIdx = -1;
-                        //     pthread_mutex_unlock(&mutex);
-                        // }
-                        // else /* The block is not BLOCKED? => Set the label of the block depending on the choosingOpt value. */
-                        // TODO: blocked => target, source: OK
-                        // but: target => unblocked => blocked
+                        /* Once the previous execution finish, we forbid modify block state by clicking on them */
+                        if (t_state == THREAD_FINISHED || 
+                            t_state == THREAD_EXITED)
+                            show_warning_init_new_state = true;
+                        else
                         {
                             pthread_mutex_lock(&mutex);
                             switch (choosingOpt)
@@ -247,14 +220,13 @@ int main(int argc, char** argv)
                             pthread_mutex_unlock(&mutex);
                         }
                     }
-                    // draw a rectangle around this `selectable` manually: tired enough? 
+                    /* draw a rectangle around this `selectable` manually: tired enough? */
                     {
                         ImVec2 topleft = GetBlockPosition(colIdx, rowIdx, blockSize);
                         ImVec2 bottomright = ImVec2(topleft.x + blockSize + 8, topleft.y + blockSize + 5);
                         ImGui::GetWindowDrawList()->AddRect(topleft, bottomright, IM_COL_BLACK, 0.0f, ImDrawFlags_None, BORDER_THICKNESS);
                     }
 
-                    ImGui::PopStyleColor();
                     ImGui::PopStyleColor();
                     ImGui::PopStyleVar();
                     ImGui::PopStyleVar();
@@ -263,81 +235,141 @@ int main(int argc, char** argv)
             
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 24.f);
 
-            /* Block notation: */
-            ImGui::Dummy(ImVec2(0.0f, 15.0f));
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, GREEN);      /* Color of background  */
-                ImGui::Selectable("##demoSource", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Source");
-            }
-            ImGui::SameLine();
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, RED);      /* Color of background  */
-                ImGui::Selectable("##demoTarget", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Target");
-            }
-            ImGui::SameLine();
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, WHITE);      /* Color of background  */
-                ImGui::Selectable("##demoBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Unblocked");
-            }
-            ImGui::SameLine();
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, GRAY);      /* Color of background  */
-                ImGui::Selectable("##demoUnBlocked", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Blocked");
-            }
-            ImGui::Dummy(ImVec2(0.0f, 10.0f));
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, BLUE);      /* Color of background  */
-                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Visited");
-            }
-            ImGui::SameLine();
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, LIGHTBLUE);      /* Color of background  */
-                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "To be visited");
-            }
-            ImGui::SameLine();
-            {
-                ImGui::PushStyleColor(ImGuiCol_Header, YELLOW);      /* Color of background  */
-                ImGui::Selectable("##demoVisited", true, ImGuiSelectableFlags_None, ImVec2(fontS, fontS));
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::Text("%s", "Visiting");
-            }
+            printBlockNotation();
             /* dummy space to separate buttons and grid */
             ImGui::Dummy(ImVec2(0.0f, 15.0f));
             
-            ImGui::PushStyleColor(ImGuiCol_Button, WHITE);
+            /* Default WHITE */
+            ImGui::PushStyleColor(ImGuiCol_Button, (choosingOpt == CHOOSE_SOURCE) ? YELLOW : WHITE);
             if (ImGui::Button("Choose Source", BUTTON_SIZE))
                 choosingOpt = CHOOSE_SOURCE;
+            ImGui::PopStyleColor();
 
             ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, (choosingOpt == CHOOSE_TARGET) ? YELLOW : WHITE);
             if (ImGui::Button("Choose target", BUTTON_SIZE))
                 choosingOpt = CHOOSE_TARGET;
+            ImGui::PopStyleColor();
 
             ImGui::SameLine();
-            if (ImGui::Button("Choose blocked/unblocked", BUTTON_SIZE))
+            ImGui::PushStyleColor(ImGuiCol_Button, (choosingOpt == CHOOSE_BLOCKED_UNBLOCKED) ? YELLOW : WHITE);
+            if (ImGui::Button("Choose blocked/unblocked", BUTTON_SIZE_LARGE))
                 choosingOpt = CHOOSE_BLOCKED_UNBLOCKED;
+            ImGui::PopStyleColor();
+
+            /* Exit the thread after finishing */
+            if (t_state == THREAD_FINISHED)
+            {
+                pthread_mutex_lock(&mutex);
+                pthread_join(thread_id, NULL);
+                t_state = THREAD_EXITED;
+                pthread_mutex_unlock(&mutex);
+            }
+
+            /* Thread finished finding, now print the result: */
+            if (t_state == THREAD_FINISHED ||
+                t_state == THREAD_EXITED)
+            {
+                if (shared.listCell != NULL)
+                {
+                    /* print the path from TARGET to SOURCE */     
+                    endExec(shared.listCell, windowSize);
+                    sprintf(resultMsg, "\tEXECUTION DONE.\t");
+                }
+                else
+                    sprintf(resultMsg, "\tNOT FOUND ANY DIRECTION.\t");
+            }
+            ImGui::SameLine();
+            ImGui::Text("%s", resultMsg);
+
+            if (ImGui::Button("Random grid", BUTTON_SIZE))
+                show_config_window = true;
+            ImGui::SameLine();
+            if (ImGui::Button("RESET", BUTTON_SIZE))
+            {
+                pthread_mutex_lock(&mutex);
+                t_state = THREAD_INITIALIZED;
+                initLabels(&labels, &windowSize);
+                pthread_mutex_unlock(&mutex);
+                resultMsg[0] = 0;
+                show_warning_init_new_state = false;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("PAUSE/CONTINUE", BUTTON_SIZE))
+            {
+                pthread_mutex_lock(&mutex);
+                if (t_state == THREAD_RUNNING)
+                    t_state = THREAD_PAUSED;
+                else if (t_state == THREAD_PAUSED)
+                    t_state = THREAD_RUNNING;
+                pthread_mutex_unlock(&mutex);
+            }
+            if (show_warning_init_new_state)
+            {
+                ImGui::SameLine();
+                ImGui::Text("%s", "Please choose Reset or Random Grid to init new state!");
+            }
+
+            if (t_state == THREAD_EXITED)
+            {
+                /* We do nothing this case.
+                 * Just wait for user to RESET or Random new Grid to initialize thread */
+            }
+            
+            if (t_state == THREAD_PAUSED)
+            {
+                ImGui::SameLine();
+                ImGui::Text("\tPAUSED.\t"); 
+            }
+
+            if (show_config_window)
+            {
+                ImGui::Begin("Another Window", &show_config_window, ImGuiWindowFlags_AlwaysAutoResize);
+                ImGui::InputInt("Num row", &nrow);
+                ImGui::InputInt("Num col", &ncol);
+                ImGui::InputFloat("Blocked ratio", &blockedRatio);
+
+                if (blockedRatio < 0.0f ||
+                    blockedRatio > 1.0f)
+                {
+                    ImGui::SameLine();    
+                    ImGui::Text("\tPlease input `Blocked ratio` in range of (0.0,1.0).\t");
+                }
+
+                if (ImGui::Button("Random grid", BUTTON_SIZE))
+                {
+                    windowSize.nrow = nrow;
+                    windowSize.ncol = ncol;
+                    if (blockedRatio <= 1.0f &&
+                        blockedRatio >= 0.0f)
+                        {
+                            if (t_state != THREAD_INITIALIZED)
+                                {
+                                    /* Force end the currently-running thread. */
+                                    pthread_mutex_lock(&mutex);
+                                    /* Ask child to exit */
+                                    t_state = THREAD_EXITED;
+                                    pthread_join(thread_id, NULL);
+                                    t_state = THREAD_INITIALIZED;
+                                    pthread_mutex_unlock(&mutex);
+                                }
+                            RandomGrid(&labels, &windowSize, blockedRatio);
+                        show_config_window = false;
+                        }
+                    show_warning_init_new_state = false;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Close", BUTTON_SIZE))
+                    show_config_window = false;
+
+                ImGui::End();
+            }
+
+
 
             ImGui::PushStyleColor(ImGuiCol_Button, GREEN);
-            if (ImGui::Button("Exec A Star", BUTTON_SIZE) &&
-                t_state != THREAD_RUNNING)
+            if (ImGui::Button("EXECUTE", BUTTON_SIZE) &&
+                t_state == THREAD_INITIALIZED)
             {
                 shared.labels = labels;
                 shared.windowSize.nrow = windowSize.nrow;
@@ -363,86 +395,6 @@ int main(int argc, char** argv)
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Random grid", BUTTON_SIZE))
-                show_config_window = true;
-            ImGui::PopStyleColor();
-            
-            /* Thread finished finding, now print the result: */
-            if (t_state == THREAD_FINISHED)
-            {
-                if (shared.listCell != NULL)
-                {
-                /* print the path from TARGET to SOURCE */     
-                endExec(shared.listCell, windowSize);
-                sprintf(resultMsg, "\tEXECUTION DONE.\t");
-                }
-                else
-                {
-                    sprintf(resultMsg, "\tNOT FOUND ANY DIRECTION.\t");
-                }
-            }
-            ImGui::SameLine();
-            ImGui::Text("%s", resultMsg);
-
-            if (ImGui::Button("RESET", BUTTON_SIZE))
-            {
-                pthread_mutex_lock(&mutex);
-                t_state = THREAD_EXITED;
-                initLabels(&labels, &windowSize);
-                pthread_mutex_unlock(&mutex);
-                resultMsg[0] = 0;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("PAUSE/CONTINUE", BUTTON_SIZE))
-            {
-                pthread_mutex_lock(&mutex);
-                if (t_state == THREAD_RUNNING)
-                    t_state = THREAD_PAUSED;
-                else if (t_state == THREAD_PAUSED)
-                    t_state = THREAD_RUNNING;
-                pthread_mutex_unlock(&mutex);
-            }
-
-            if (t_state == THREAD_EXITED)
-            {
-                pthread_join(thread_id, NULL);
-                pthread_mutex_lock(&mutex);
-                t_state = THREAD_INITIALIZED;
-                pthread_mutex_unlock(&mutex);
-            }
-            
-            if (t_state == THREAD_PAUSED)
-            {
-                ImGui::SameLine();
-                ImGui::Text("\tPAUSED.\t"); 
-            }
-
-            if (show_config_window)
-            {
-                float blockedRatio = 0.3;
-                ImGui::Begin("Another Window", &show_config_window, ImGuiWindowFlags_AlwaysAutoResize);
-                ImGui::InputInt("Num row", &nrow);
-                ImGui::InputInt("Num col", &ncol);
-                ImGui::InputFloat("Blocked ratio", &blockedRatio);
-                if (ImGui::Button("Random grid", BUTTON_SIZE))
-                {
-                    windowSize.nrow = nrow;
-                    windowSize.ncol = ncol;
-                    show_config_window = false;
-                    // TODO: Show warning in case blockedRatio is not in a satisfied range.
-                    if (blockedRatio < 1.0f &&
-                        blockedRatio >= 0.0f)
-                        RandomGrid(&labels, &windowSize, blockedRatio);
-                }                
-                ImGui::SameLine();
-                if (ImGui::Button("Close", BUTTON_SIZE))
-                    show_config_window = false;
-
-                ImGui::End();
-            }
-
-
-
             ImGui::PushStyleColor(ImGuiCol_Button, RED);
             if (ImGui::Button("QUIT", BUTTON_SIZE) || /* either the user click QUIT, or `x` on the corner with a `initialized` thread */
                 (done &&
@@ -459,21 +411,15 @@ int main(int argc, char** argv)
             }
             ImGui::PopStyleColor();
             ImGui::PopStyleVar();
-            // ImGui::PopStyleVar();
-               
-// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
-// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
-// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
-// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
-// ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();ImGui::PopStyleVar();
+            
             ImGui::PopStyleColor();
 
-            /* Continuously parse a float from slider in range of 0.1f to 500.0f */
-            ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);            
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
         }
+        /* Continuously parse a float from slider in range of 0.1f to 500.0f */
+        ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);            
+
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::End();
 
         // Rendering
         ImGui::Render();

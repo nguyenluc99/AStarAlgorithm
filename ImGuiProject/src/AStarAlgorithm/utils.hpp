@@ -26,6 +26,8 @@
 #define MAX2(x, y)              ((x > y) ? (x) : (y))
 #define MIN2(x, y)              ((x < y) ? (x) : (y))
 
+#define LINE_THICKNESS          3.0f
+
 /* to avoid including math.h header to calculate square root */
 #define SQRT2                   1.41421356f
 
@@ -111,6 +113,7 @@ typedef struct ThreadSearchingState // TODO: only lock item which might be modif
 } ThreadSearchingState;
 
 
+void printBlockNotation();
 void initLabels(BlockLabels **labels, Grid* windowSize);
 void reCalculateBlockSize(Grid* windowSize);
 long getCurrentMicroSecs();

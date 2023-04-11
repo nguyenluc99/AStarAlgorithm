@@ -10,9 +10,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl2.h"
-#include <stdio.h>
 #include <SDL.h>
-// #include <SDL_video.h>
 #include <SDL_opengl.h>
 
 #include <pthread.h>
@@ -20,10 +18,6 @@
 #include <unistd.h>
 #include <string>
 #include "utils.hpp"
-
-#define MAIN_SCREEN_FPS         60
-#define BUTTON_SIZE             ImVec2(120, 30)
-#define BUTTON_SIZE_LARGE       ImVec2(200, 30)
 
 
 extern int   sourceIdx, targetIdx;
@@ -85,9 +79,7 @@ int main(int argc, char** argv)
     Grid windowSize;
     int nrow = 5,
         ncol = 5;
-    windowSize.nrow = nrow;
-    windowSize.ncol = ncol;
-    
+
     BlockLabels *labels = NULL;
     initLabels(&labels, &windowSize);
     ThreadState t_state = THREAD_INITIALIZED;
@@ -98,6 +90,9 @@ int main(int argc, char** argv)
     bool show_warning_init_new_state = false;
     float blockedRatio = 0.3;
     resultMsg[0] = 0;
+
+    windowSize.nrow = nrow;
+    windowSize.ncol = ncol;
 
     while (!done)
     {
@@ -119,7 +114,7 @@ int main(int argc, char** argv)
 
         fontS = ImGui::GetFont()->FontSize;
 
-        /* 
+        /*
          * Get size of the main window and assign it to the subframe
          * so that the subframe can cover the whole window.
          * It is a little bit handy, though.
@@ -187,7 +182,7 @@ int main(int argc, char** argv)
                     if (ImGui::Selectable(name, true, ImGuiSelectableFlags_None, ImVec2(blockSize, blockSize)))
                     {
                         /* Once the previous execution finish, we forbid modify block state by clicking on them */
-                        if (t_state == THREAD_FINISHED || 
+                        if (t_state == THREAD_FINISHED ||
                             t_state == THREAD_EXITED)
                             show_warning_init_new_state = true;
                         else
@@ -216,7 +211,7 @@ int main(int argc, char** argv)
                                     break;
                                 default:
                                     break;
-                            }   
+                            }
                             pthread_mutex_unlock(&mutex);
                         }
                     }
@@ -232,13 +227,13 @@ int main(int argc, char** argv)
                     ImGui::PopStyleVar();
                 }
             }
-            
+
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 24.f);
 
             printBlockNotation();
             /* dummy space to separate buttons and grid */
             ImGui::Dummy(ImVec2(0.0f, 15.0f));
-            
+
             /* Default WHITE */
             ImGui::PushStyleColor(ImGuiCol_Button, (choosingOpt == CHOOSE_SOURCE) ? YELLOW : WHITE);
             if (ImGui::Button("Choose Source", BUTTON_SIZE))
@@ -272,7 +267,7 @@ int main(int argc, char** argv)
             {
                 if (shared.listCell != NULL)
                 {
-                    /* print the path from TARGET to SOURCE */     
+                    /* print the path from TARGET to SOURCE */
                     endExec(shared.listCell, windowSize);
                     sprintf(resultMsg, "\tEXECUTION DONE.\t");
                 }
@@ -315,11 +310,11 @@ int main(int argc, char** argv)
                 /* We do nothing this case.
                  * Just wait for user to RESET or Random new Grid to initialize thread */
             }
-            
+
             if (t_state == THREAD_PAUSED)
             {
                 ImGui::SameLine();
-                ImGui::Text("\tPAUSED.\t"); 
+                ImGui::Text("\tPAUSED.\t");
             }
 
             if (show_config_window)
@@ -332,7 +327,7 @@ int main(int argc, char** argv)
                 if (blockedRatio < 0.0f ||
                     blockedRatio > 1.0f)
                 {
-                    ImGui::SameLine();    
+                    ImGui::SameLine();
                     ImGui::Text("\tPlease input `Blocked ratio` in range of (0.0,1.0).\t");
                 }
 
@@ -411,12 +406,12 @@ int main(int argc, char** argv)
             }
             ImGui::PopStyleColor();
             ImGui::PopStyleVar();
-            
+
             ImGui::PopStyleColor();
 
         }
         /* Continuously parse a float from slider in range of 0.1f to 500.0f */
-        ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);            
+        ImGui::SliderFloat("Steps/sec", &stepPerSecs, 0.1f, 500.0f);
 
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
         ImGui::End();
@@ -429,7 +424,7 @@ int main(int argc, char** argv)
         //glUseProgram(0); // You may want this if using this code in an OpenGL 3+ context where shaders may be bound
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
-        
+
         /*
          * As we do not know how to set refresh rate of the main screen at the moment,
          * we are using busy waiting to force the main screen to wait for a specific
@@ -442,7 +437,7 @@ int main(int argc, char** argv)
              * The variances about 500/16667 ~ 3% should be enough.
              * Ideally, the expected refresh rate is about 60*0.985 = 59.1 (FPS)
              */
-            usleep(500); 
+            usleep(500);
 
     }
 

@@ -2,7 +2,6 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl2.h"
 
-#include <stdio.h>      /* to be removed */
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <assert.h>
@@ -136,11 +135,11 @@ float* initHeuristicDistance(BlockLabels* labels, Grid *windowSize)
     int idx, numElement;
     ImVec2 target;
     float* heuDistance;
-    
+
     numElement = windowSize->nrow * windowSize->ncol;
     target = GetBlockByIdx(targetIdx, windowSize->ncol);
     heuDistance = (float*) malloc(numElement * sizeof(float));
-    
+
     for (idx = 0; idx < numElement; ++idx)
     {
         if (labels[idx] == LBL_BLOCKED)
@@ -248,7 +247,7 @@ void getDrawablePos(ImVec2& outside, ImVec2 inside, Grid windowSize)
         float d1x  = (float) dx/dy * d1y;
         outside.x = outside.x + d1x;
         outside.y = outside.y + d1y; /* Handy enough? :( */
-    } 
+    }
     if (outside.x < topX)
     {
         float d1x  = topX - outside.x;
@@ -300,7 +299,7 @@ void endExec(Cell* listCell, Grid windowSize)
     int runningIdx;
     int ncol = windowSize.ncol;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-    
+
     runningCell = &listCell[targetIdx];
     runningIdx = targetIdx;
 
@@ -316,7 +315,7 @@ void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
 {
     int idx, numElement;
 
-    numElement = windowSize->nrow * windowSize->ncol;        
+    numElement = windowSize->nrow * windowSize->ncol;
 
     pthread_mutex_lock(&mutex);
     if(*labels)
@@ -353,9 +352,9 @@ void RandomGrid(BlockLabels** labels, Grid* windowSize, float blockedRatio)
  * DESIGN:
  *  Calculate unblocked-target heuristic from each point to target
  *  Blocked-target = infinity
- * 
+ *
  * n: one of 8 neighbor
- * g(n): exact cost from SOURCE to n. 
+ * g(n): exact cost from SOURCE to n.
  * h(n): estimated cost from n to TARGET
  * f(n) = g(n) + h(h)
  *
@@ -385,7 +384,7 @@ void *execAStar(void* arg)
 
     heuDistance = initHeuristicDistance(labels, windowSize);
     listCell = initListCell(heuDistance, windowSize);
-    
+
     /* Init the openList with the source in order to start traversing */
     openList.insert(&listCell[sourceIdx]);
 
@@ -413,20 +412,20 @@ void *execAStar(void* arg)
             shared->listCell = listCell;
 
             break;
-        } 
-        
+        }
+
         if (labels[mainCellIdx] == LBL_VISITED)
             /* This block (with the seemingly shorter distance) has been already visited by other path */
             continue;
         /* We might want to visit cell that is ready to be visited */
-        else if (labels[mainCellIdx] == LBL_TOBEVISITED) 
+        else if (labels[mainCellIdx] == LBL_TOBEVISITED)
         {
             pthread_mutex_lock(&mutex);
             /* First time this block is visited */
             labels[mainCellIdx] = LBL_VISITED; // redundant as we assign it as visited at the end.
             pthread_mutex_unlock(&mutex);
         }
-        else if (mainCellIdx != sourceIdx) 
+        else if (mainCellIdx != sourceIdx)
         {
             /* Weird enough? This should not happen */
             printf("ERROR HAPPENED");
@@ -439,7 +438,7 @@ void *execAStar(void* arg)
         pthread_mutex_lock(&mutex);
         labels[mainCellIdx] = LBL_VISITING; /* To change the color in main screen */
         pthread_mutex_unlock(&mutex);
-        
+
         for (pady = -1; pady <= 1; pady ++)
         {
             for (padx = -1; padx <= 1; padx ++)
@@ -454,7 +453,7 @@ void *execAStar(void* arg)
                 Cell* successorCell;
                 ImVec2 blk = ImVec2(mainCell->block.x+padx, mainCell->block.y+pady);
                 int successorIdx = GetIdxByBlock(blk, windowSize->ncol);
-                
+
                 if (!isValidIdx(successorIdx, numElement))
                     continue;
 
@@ -466,16 +465,16 @@ void *execAStar(void* arg)
                 if (!isValidBlock(successorCell->block, windowSize))
                     continue;
 
-                /* 
+                /*
                  * Skip if the successor is BLOCKED, or SOURCE
-                 * 
-                 * We still process if the successor is VISITED, 
-                 * since new shorter distance might be found and 
+                 *
+                 * We still process if the successor is VISITED,
+                 * since new shorter distance might be found and
                  * updated later.
                  */
-                if (labels[successorIdx] == LBL_BLOCKED || 
+                if (labels[successorIdx] == LBL_BLOCKED ||
                     labels[successorIdx] == LBL_VISITING ||
-                    successorIdx == sourceIdx) 
+                    successorIdx == sourceIdx)
                 {
                     continue;
                 }
@@ -491,21 +490,21 @@ void *execAStar(void* arg)
                 successor_h = heuDistance[successorIdx];                /* from successor to target */
                 successor_f = successor_g + successor_h;                /* total from source to target */
 
-                /* 
+                /*
                  * Update shortest path to the boundary of current block accordingly
-                 * 
+                 *
                  * The cell may be visited in next rounds if either the new way with
                  * shorter path is found, or it has not been visited yet.
                  */
-                if (successorCell->g > successor_g) 
+                if (successorCell->g > successor_g)
                 {
                     successorCell->f = successor_f;
                     successorCell->g = successor_g;
                     successorCell->h = successor_h;
-                    /* 
-                     * The set only save one element of a given key; therefore, in order 
-                     * for the set to save different block with the same successor_f distance while 
-                     * remaining the relative distance with other blocks, we add some 
+                    /*
+                     * The set only save one element of a given key; therefore, in order
+                     * for the set to save different block with the same successor_f distance while
+                     * remaining the relative distance with other blocks, we add some
                      * insignificantly extra `distance` and use it as key to distinguish.
                      */
                     successorCell->f_order = successor_f + ((float)successorIdx / (numElement * 100));
@@ -535,7 +534,7 @@ void *execAStar(void* arg)
             labels[mainCellIdx] = LBL_VISITED;
         pthread_mutex_unlock(&mutex);
     }
-    
+
     pthread_mutex_lock(&mutex);
     *(shared->state) = THREAD_FINISHED;
     pthread_mutex_unlock(&mutex);

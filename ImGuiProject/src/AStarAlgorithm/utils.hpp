@@ -2,10 +2,8 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl2.h"
 
-#include <stdio.h>      /* to be removed */
 #include <SDL.h>
 #include <SDL_opengl.h>
-
 
 /* constant colors used to present searching states at the main screen */
 #define WHITE                   ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
@@ -31,11 +29,16 @@
 /* to avoid including math.h header to calculate square root */
 #define SQRT2                   1.41421356f
 
+#define MAIN_SCREEN_FPS         60
+#define BUTTON_SIZE             ImVec2(120, 30)
+#define BUTTON_SIZE_LARGE       ImVec2(200, 30)
+
+
 
 #define GetBlockByIdx(idx, size)    ImVec2((int) idx % size, \
                                            (int) idx / size)
 
-#define GetIdxByBlock(blk, size) ((int)(blk.x + blk.y * size)) 
+#define GetIdxByBlock(blk, size) ((int)(blk.x + blk.y * size))
 
 #define CHECK_THREAD_EXITED(state, toBeFreed) \
 do { \
@@ -53,7 +56,7 @@ do { \
         CHECK_THREAD_EXITED(state, toBeFreed); \
         usleep(100); \
     }; \
-} while(0); 
+} while(0);
 
 #define GetBlockPosition(colIdx, rowIdx, blkSize)       (ImVec2(4  + colIdx * (blkSize + 8) + mainWindowPosition.x - ImGui::GetScrollX(), \
                                                                  24 + rowIdx * (blkSize + 4) + mainWindowPosition.y - ImGui::GetScrollY()))
@@ -94,7 +97,7 @@ typedef struct Cell
     float        f_order;       /* f + (insignificant amount), used to compare
                                    Cell so that all Cell are uniquely stored    */
     Cell        *prev;          /* previous Cell that when go through it
-                                   recursively, we will end at SOURCE, and 
+                                   recursively, we will end at SOURCE, and
                                    archive the total distance `g`               */
 } Cell;
 
@@ -104,7 +107,7 @@ typedef struct Grid
     int          ncol;
 } Grid;
 
-typedef struct ThreadSearchingState // TODO: only lock item which might be modified by both thread.  
+typedef struct ThreadSearchingState
 {
     BlockLabels     *labels;
     Grid             windowSize;

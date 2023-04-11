@@ -1,6 +1,8 @@
 # AStarAlgorithm
 A visualization version of A* algorithm finding shortest path between two nodes.
 
+The GUI of this demonstration is inherited from ImGui project: https://github.com/ocornut/imgui
+
 ## Prerequisite: SDL2 (http://www.libsdl.org):
 #### Installation:
 - Linux:

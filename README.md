@@ -30,7 +30,8 @@ Run the program:
 ```
 
 ## Usage note:
-<li> Please use "Random Grid" button to initialize a grid with height and width (number of row and number of column on each row)
+<li> Because ImGui automatically save the previous position of the frame in a file (imgui.ini), it is better to remove it before running the program.
+<li> Please use "Random Grid" button to initialize a grid with height and width (number of row and number of column on each row).
 <li> If you need an empty grid with just SOURCE and TARGET, just leave the "Blocked ratio" be zero.
 <li> Speed of the algorithm can be changed in real-time during execution using the slider "Steps/sec".
 <li> If you have any question, please open an issue or email me :) .

@@ -16,13 +16,13 @@
 
 EXE = AStarAlgorithm
 IMGUI_DIR = ../..
-SOURCES = main.cpp
+SOURCES = main.cpp utils.cpp
 SOURCES += $(IMGUI_DIR)/imgui/imgui.cpp $(IMGUI_DIR)/imgui/imgui_demo.cpp $(IMGUI_DIR)/imgui/imgui_draw.cpp $(IMGUI_DIR)/imgui/imgui_tables.cpp $(IMGUI_DIR)/imgui/imgui_widgets.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp $(IMGUI_DIR)/backends/imgui_impl_opengl2.cpp
-OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES)))) utils.o
+OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 UNAME_S := $(shell uname -s)
 
-CXXFLAGS = -std=c++14 -I$(IMGUI_DIR)/imgui -I$(IMGUI_DIR)/backends -I../libs/glfw/include 
+CXXFLAGS = -std=c++14 -I$(IMGUI_DIR)/imgui -I$(IMGUI_DIR)/backends -I../libs/glfw/include
 CXXFLAGS += -g -Wall -Wformat
 LIBS =
 
@@ -88,5 +88,5 @@ $(EXE): $(OBJS)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)
 
 clean:
-	rm -f $(EXE) $(OBJS)
-	# rm -f $(EXE)  utils.o
+	rm -f $(EXE) imgui.ini  $(OBJS)
+	# rm -f $(EXE) imgui.ini  utils.o

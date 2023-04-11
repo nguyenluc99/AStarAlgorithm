@@ -123,10 +123,10 @@ int main(int argc, char** argv)
         ImGui::SetNextWindowSize(ImVec2(max_width, max_height));
         ImGui::SetWindowPos("A star algo", ImVec2(0.0f, 0.0f), ImGuiCond_FirstUseEver) ;
 
-        ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Begin("A star algo", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
         ImGui::Dummy(ImVec2(0.0f, 2*fontS));
         mainWindowPosition = ImGui::GetWindowPos();
-        mainWindowPosition.y += 2*fontS + 4; /* Magic number, as we are hiding the frame name: "A star algo"*/
+        mainWindowPosition.y += 1*fontS -2; /* Magic number, as we are hiding the frame name: "A star algo"*/
 
         reCalculateBlockSize(&windowSize);
         {
